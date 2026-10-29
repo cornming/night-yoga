@@ -1,0 +1,53 @@
+[
+  {
+    "id": "quick",
+    "title": "快速放鬆",
+    "desc": "時間不多也沒關係，鬆開背和腰就去睡。",
+    "items": [
+      { "breath": "extended" },
+      { "pose": "cat-cow", "seconds": 60 },
+      { "pose": "child", "seconds": 60 },
+      { "pose": "twist", "seconds": 30, "side": "left" },
+      { "pose": "twist", "seconds": 30, "side": "right" },
+      { "pose": "savasana", "seconds": 60 }
+    ]
+  },
+  {
+    "id": "standard",
+    "title": "睡前舒展",
+    "desc": "從頸肩到髖部完整舒展一輪，最常用的一組。",
+    "items": [
+      { "breath": "478" },
+      { "pose": "neck", "seconds": 30, "side": "left" },
+      { "pose": "neck", "seconds": 30, "side": "right" },
+      { "pose": "cat-cow", "seconds": 60 },
+      { "pose": "child", "seconds": 60 },
+      { "pose": "fold", "seconds": 60 },
+      { "pose": "twist", "seconds": 45, "side": "left" },
+      { "pose": "twist", "seconds": 45, "side": "right" },
+      { "pose": "happy-baby", "seconds": 45 },
+      { "pose": "bound-angle", "seconds": 60 },
+      { "pose": "savasana", "seconds": 90 }
+    ]
+  },
+  {
+    "id": "deep",
+    "title": "深度放鬆",
+    "desc": "壓力大的日子，多花一點時間停留和呼吸。",
+    "items": [
+      { "breath": "478" },
+      { "pose": "neck", "seconds": 30, "side": "left" },
+      { "pose": "neck", "seconds": 30, "side": "right" },
+      { "pose": "cat-cow", "seconds": 60 },
+      { "pose": "child", "seconds": 90 },
+      { "pose": "fold", "seconds": 75 },
+      { "pose": "twist", "seconds": 60, "side": "left" },
+      { "pose": "twist", "seconds": 60, "side": "right" },
+      { "pose": "happy-baby", "seconds": 60 },
+      { "pose": "bound-angle", "seconds": 90 },
+      { "pose": "legs-wall", "seconds": 120 },
+      { "breath": "extended" },
+      { "pose": "savasana", "seconds": 90 }
+    ]
+  }
+]

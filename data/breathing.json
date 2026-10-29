@@ -1,0 +1,26 @@
+[
+  {
+    "id": "478",
+    "name": "4-7-8 呼吸",
+    "desc": "吐氣最長，幫助身體切換到休息模式，適合躺下前。",
+    "pre": 5,
+    "cycles": 4,
+    "ratio": { "inhale": 4, "retain": 7, "exhale": 8, "sustain": 0 }
+  },
+  {
+    "id": "extended",
+    "name": "延長吐氣",
+    "desc": "吐氣比吸氣長一些，節奏溫和，新手最容易上手。",
+    "pre": 5,
+    "cycles": 5,
+    "ratio": { "inhale": 4, "retain": 0, "exhale": 6, "sustain": 0 }
+  },
+  {
+    "id": "box",
+    "name": "方塊呼吸",
+    "desc": "吸、停、吐、停四段等長，幫助思緒安定下來。",
+    "pre": 5,
+    "cycles": 5,
+    "ratio": { "inhale": 4, "retain": 4, "exhale": 4, "sustain": 4 }
+  }
+]

@@ -1,0 +1,237 @@
+//! 瀏覽器 API：聲音、語音提示、螢幕常亮、localStorage。
+//! 這些物件不是 Send，放在 thread_local（WASM 只有單一執行緒）。
+
+use js_sys::{Function, Promise, Reflect};
+use std::cell::RefCell;
+use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen_futures::{JsFuture, spawn_local};
+use web_sys::{
+    AudioBufferSourceNode, AudioContext, BiquadFilterType, GainNode, OscillatorType,
+    SpeechSynthesisUtterance,
+};
+
+struct Audio {
+    ctx: AudioContext,
+    noise: Option<(AudioBufferSourceNode, GainNode)>,
+}
+
+thread_local! {
+    static AUDIO: RefCell<Option<Audio>> = const { RefCell::new(None) };
+    static WAKE: RefCell<Option<JsValue>> = const { RefCell::new(None) };
+}
+
+fn with_audio(f: impl FnOnce(&mut Audio)) {
+    AUDIO.with(|a| {
+        let mut a = a.borrow_mut();
+        if a.is_none() {
+            // 瀏覽器規定 AudioContext 要在使用者點擊後才能啟動，所以在第一次需要時才建立
+            if let Ok(ctx) = AudioContext::new() {
+                *a = Some(Audio { ctx, noise: None });
+            }
+        }
+        if let Some(audio) = a.as_mut() {
+            let _ = audio.ctx.resume();
+            f(audio);
+        }
+    });
+}
+
+/// 換動作時的輕柔鈴聲：兩個正弦波疊加、慢慢淡出。
+pub fn chime() {
+    with_audio(|a| {
+        let ctx = &a.ctx;
+        let t = ctx.current_time();
+        for (freq, vol) in [(528.0_f32, 0.18_f32), (792.0, 0.06)] {
+            let (Ok(osc), Ok(gain)) = (ctx.create_oscillator(), ctx.create_gain()) else {
+                return;
+            };
+            osc.set_type(OscillatorType::Sine);
+            osc.frequency().set_value(freq);
+            let g = gain.gain();
+            let _ = g.set_value_at_time(0.0, t);
+            let _ = g.linear_ramp_to_value_at_time(vol, t + 0.04);
+            let _ = g.exponential_ramp_to_value_at_time(0.0001, t + 2.8);
+            let _ = osc.connect_with_audio_node(&gain);
+            let _ = gain.connect_with_audio_node(&ctx.destination());
+            let _ = osc.start();
+            let _ = osc.stop_with_when(t + 3.0);
+        }
+    });
+}
+
+/// 低沉的棕噪音，聽起來像遠處的雨聲或海浪。
+pub fn noise_on() {
+    with_audio(|a| {
+        if a.noise.is_some() {
+            return;
+        }
+        let ctx = &a.ctx;
+        let rate = ctx.sample_rate();
+        let len = (rate * 6.0) as u32;
+        let Ok(buf) = ctx.create_buffer(1, len, rate) else {
+            return;
+        };
+        let mut data = vec![0.0_f32; len as usize];
+        let mut last = 0.0_f32;
+        for v in data.iter_mut() {
+            let white = (js_sys::Math::random() as f32) * 2.0 - 1.0;
+            last = (last + 0.02 * white) / 1.02;
+            *v = last * 3.2;
+        }
+        // 頭尾淡入淡出，避免循環接縫處出現爆音
+        let fade = (rate * 0.05) as usize;
+        let n = data.len();
+        for i in 0..fade {
+            let k = i as f32 / fade as f32;
+            data[i] *= k;
+            data[n - 1 - i] *= k;
+        }
+        let _ = buf.copy_to_channel(&data, 0);
+        let (Ok(src), Ok(filter), Ok(gain)) = (
+            ctx.create_buffer_source(),
+            ctx.create_biquad_filter(),
+            ctx.create_gain(),
+        ) else {
+            return;
+        };
+        src.set_buffer(Some(&buf));
+        src.set_loop(true);
+        filter.set_type(BiquadFilterType::Lowpass);
+        filter.frequency().set_value(900.0);
+        let t = ctx.current_time();
+        let _ = gain.gain().set_value_at_time(0.0, t);
+        let _ = gain.gain().linear_ramp_to_value_at_time(0.35, t + 2.0);
+        let _ = src.connect_with_audio_node(&filter);
+        let _ = filter.connect_with_audio_node(&gain);
+        let _ = gain.connect_with_audio_node(&ctx.destination());
+        let node: &web_sys::AudioScheduledSourceNode = &src;
+        let _ = node.start();
+        a.noise = Some((src, gain));
+    });
+}
+
+pub fn noise_off() {
+    AUDIO.with(|a| {
+        if let Some(audio) = a.borrow_mut().as_mut() {
+            if let Some((src, gain)) = audio.noise.take() {
+                let t = audio.ctx.current_time();
+                let _ = gain.gain().cancel_scheduled_values(t);
+                let _ = gain.gain().set_value_at_time(gain.gain().value(), t);
+                let _ = gain.gain().linear_ramp_to_value_at_time(0.0, t + 1.0);
+                let node: &web_sys::AudioScheduledSourceNode = &src;
+                let _ = node.stop_with_when(t + 1.1);
+            }
+        }
+    });
+}
+
+/// 用瀏覽器內建語音合成念出提示（台灣華語、放慢語速）。
+pub fn speak(text: &str) {
+    let Some(win) = web_sys::window() else { return };
+    let Ok(synth) = win.speech_synthesis() else {
+        return;
+    };
+    let Ok(u) = SpeechSynthesisUtterance::new_with_text(text) else {
+        return;
+    };
+    u.set_lang("zh-TW");
+    u.set_rate(0.85);
+    u.set_pitch(0.95);
+    u.set_volume(0.9);
+    if let Ok(voices) = Reflect::get(&synth, &"getVoices".into())
+        .and_then(|f| f.dyn_into::<Function>().map_err(JsValue::from))
+        .and_then(|f| f.call0(&synth))
+    {
+        let voices: js_sys::Array = voices.unchecked_into();
+        let pick = voices.iter().find(|v| {
+            Reflect::get(v, &"lang".into())
+                .ok()
+                .and_then(|l| l.as_string())
+                .map(|l| l.replace('_', "-").eq_ignore_ascii_case("zh-TW"))
+                .unwrap_or(false)
+        });
+        if let Some(v) = pick {
+            let _ = Reflect::set(&u, &"voice".into(), &v);
+        }
+    }
+    synth.cancel();
+    synth.speak(&u);
+}
+
+pub fn stop_speaking() {
+    if let Some(Ok(s)) = web_sys::window().map(|w| w.speech_synthesis()) {
+        s.cancel();
+    }
+}
+
+/// 練習時讓螢幕保持亮著（Screen Wake Lock API，不支援的瀏覽器會略過）。
+pub fn keep_awake() {
+    let Some(win) = web_sys::window() else { return };
+    let nav = win.navigator();
+    let Ok(wl) = Reflect::get(&nav, &"wakeLock".into()) else {
+        return;
+    };
+    if wl.is_undefined() || wl.is_null() {
+        return;
+    }
+    let Ok(req) = Reflect::get(&wl, &"request".into()) else {
+        return;
+    };
+    let Ok(req) = req.dyn_into::<Function>() else {
+        return;
+    };
+    let Ok(p) = req.call1(&wl, &"screen".into()) else {
+        return;
+    };
+    let Ok(p) = p.dyn_into::<Promise>() else {
+        return;
+    };
+    spawn_local(async move {
+        if let Ok(sentinel) = JsFuture::from(p).await {
+            WAKE.with(|w| *w.borrow_mut() = Some(sentinel));
+        }
+    });
+}
+
+pub fn release_awake() {
+    WAKE.with(|w| {
+        if let Some(s) = w.borrow_mut().take() {
+            if let Ok(f) = Reflect::get(&s, &"release".into())
+                .and_then(|f| f.dyn_into::<Function>().map_err(JsValue::from))
+            {
+                let _ = f.call0(&s);
+            }
+        }
+    });
+}
+
+pub fn load(key: &str) -> Option<String> {
+    web_sys::window()?
+        .local_storage()
+        .ok()??
+        .get_item(key)
+        .ok()?
+}
+
+pub fn save(key: &str, value: &str) {
+    if let Some(Ok(Some(s))) = web_sys::window().map(|w| w.local_storage()) {
+        let _ = s.set_item(key, value);
+    }
+}
+
+/// 今天往前推 `days_ago` 天的日期字串（本地時間，YYYY-MM-DD）。
+pub fn date_key(days_ago: u32) -> String {
+    let now = js_sys::Date::now() - f64::from(days_ago) * 86_400_000.0;
+    let d = js_sys::Date::new(&JsValue::from_f64(now));
+    format!(
+        "{:04}-{:02}-{:02}",
+        d.get_full_year(),
+        d.get_month() + 1,
+        d.get_date()
+    )
+}
+
+/// 今天是星期幾（0 = 週日）。
+pub fn weekday_today() -> u32 {
+    js_sys::Date::new_0().get_day()
+}
