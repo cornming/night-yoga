@@ -13,10 +13,18 @@ pub struct Pose {
     pub cue: String,
     pub steps: Vec<String>,
     pub caution: Option<String>,
-    /// 線條小人的頭部座標 [x, y]（viewBox 0 0 200 120）
-    pub head: [f32; 2],
-    /// 線條小人的身體路徑（SVG path d）
-    pub paths: Vec<String>,
+    /// 示範圖：一個影格是靜態圖，兩個影格會來回播放
+    pub figure: Vec<crate::figure::Skeleton>,
+    /// 兩個影格來回一次的秒數
+    #[serde(default = "default_period")]
+    pub period: f32,
+    /// 由 figure 算出的 SVG
+    #[serde(skip)]
+    pub svg: String,
+}
+
+fn default_period() -> f32 {
+    8.0
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -242,8 +250,11 @@ pub struct Data {
 }
 
 pub static DATA: LazyLock<Data> = LazyLock::new(|| {
-    let poses: Vec<Pose> =
+    let mut poses: Vec<Pose> =
         serde_json::from_str(include_str!("../data/poses.json")).expect("poses.json 格式錯誤");
+    for p in poses.iter_mut() {
+        p.svg = crate::figure::render(&p.figure, p.period);
+    }
     let breathing: Vec<Breathing> = serde_json::from_str(include_str!("../data/breathing.json"))
         .expect("breathing.json 格式錯誤");
     let raw: Vec<RawRoutine> = serde_json::from_str(include_str!("../data/routines.json"))
@@ -308,6 +319,42 @@ mod tests {
         }
         let mins: Vec<u32> = d.routines.iter().map(|r| r.minutes()).collect();
         assert_eq!(mins, vec![5, 10, 15]);
+    }
+
+    /// `PREVIEW=1 cargo test preview` 會把所有示範圖輸出到 target/figures.html
+    #[test]
+    fn preview_figures() {
+        if std::env::var("PREVIEW").is_err() {
+            return;
+        }
+        let cards: String = DATA
+            .poses
+            .iter()
+            .flat_map(|p| {
+                let mut v = vec![format!("<div class=c>{}<p>{}</p></div>", p.svg, p.zh)];
+                if p.figure.len() > 1 {
+                    for (i, f) in p.figure.iter().enumerate() {
+                        let svg = crate::figure::render(std::slice::from_ref(f), p.period);
+                        v.push(format!(
+                            "<div class=c>{svg}<p>{} 影格 {}</p></div>",
+                            p.zh,
+                            i + 1
+                        ));
+                    }
+                }
+                v
+            })
+            .collect();
+        let html = format!(
+            "<!doctype html><meta charset=utf-8><style>body{{background:#0b1020;color:#ddd;font-family:sans-serif;\
+             display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px}}.c{{background:#151b36;border-radius:12px;\
+             padding:6px;text-align:center}}svg{{width:100%}}p{{margin:0}}</style>{cards}"
+        );
+        std::fs::write(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/target/figures.html"),
+            html,
+        )
+        .unwrap();
     }
 
     #[test]

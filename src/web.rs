@@ -5,41 +5,30 @@ use js_sys::{Function, Promise, Reflect};
 use std::cell::RefCell;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use web_sys::{
-    AudioBufferSourceNode, AudioContext, BiquadFilterType, GainNode, OscillatorType,
-    SpeechSynthesisUtterance,
-};
-
-struct Audio {
-    ctx: AudioContext,
-    noise: Option<(AudioBufferSourceNode, GainNode)>,
-}
+use web_sys::{AudioContext, OscillatorType, SpeechSynthesisUtterance};
 
 thread_local! {
-    static AUDIO: RefCell<Option<Audio>> = const { RefCell::new(None) };
+    static AUDIO: RefCell<Option<AudioContext>> = const { RefCell::new(None) };
     static WAKE: RefCell<Option<JsValue>> = const { RefCell::new(None) };
 }
 
-fn with_audio(f: impl FnOnce(&mut Audio)) {
+/// 整個 App 共用一個 AudioContext。
+/// 瀏覽器規定要在使用者點擊後才能啟動聲音，所以第一次需要時才建立。
+pub fn audio_context() -> Option<AudioContext> {
     AUDIO.with(|a| {
         let mut a = a.borrow_mut();
         if a.is_none() {
-            // 瀏覽器規定 AudioContext 要在使用者點擊後才能啟動，所以在第一次需要時才建立
-            if let Ok(ctx) = AudioContext::new() {
-                *a = Some(Audio { ctx, noise: None });
-            }
+            *a = AudioContext::new().ok();
         }
-        if let Some(audio) = a.as_mut() {
-            let _ = audio.ctx.resume();
-            f(audio);
-        }
-    });
+        let ctx = a.clone()?;
+        let _ = ctx.resume();
+        Some(ctx)
+    })
 }
 
 /// 換動作時的輕柔鈴聲：兩個正弦波疊加、慢慢淡出。
 pub fn chime() {
-    with_audio(|a| {
-        let ctx = &a.ctx;
+    if let Some(ctx) = audio_context() {
         let t = ctx.current_time();
         for (freq, vol) in [(528.0_f32, 0.18_f32), (792.0, 0.06)] {
             let (Ok(osc), Ok(gain)) = (ctx.create_oscillator(), ctx.create_gain()) else {
@@ -56,73 +45,7 @@ pub fn chime() {
             let _ = osc.start();
             let _ = osc.stop_with_when(t + 3.0);
         }
-    });
-}
-
-/// 低沉的棕噪音，聽起來像遠處的雨聲或海浪。
-pub fn noise_on() {
-    with_audio(|a| {
-        if a.noise.is_some() {
-            return;
-        }
-        let ctx = &a.ctx;
-        let rate = ctx.sample_rate();
-        let len = (rate * 6.0) as u32;
-        let Ok(buf) = ctx.create_buffer(1, len, rate) else {
-            return;
-        };
-        let mut data = vec![0.0_f32; len as usize];
-        let mut last = 0.0_f32;
-        for v in data.iter_mut() {
-            let white = (js_sys::Math::random() as f32) * 2.0 - 1.0;
-            last = (last + 0.02 * white) / 1.02;
-            *v = last * 3.2;
-        }
-        // 頭尾淡入淡出，避免循環接縫處出現爆音
-        let fade = (rate * 0.05) as usize;
-        let n = data.len();
-        for i in 0..fade {
-            let k = i as f32 / fade as f32;
-            data[i] *= k;
-            data[n - 1 - i] *= k;
-        }
-        let _ = buf.copy_to_channel(&data, 0);
-        let (Ok(src), Ok(filter), Ok(gain)) = (
-            ctx.create_buffer_source(),
-            ctx.create_biquad_filter(),
-            ctx.create_gain(),
-        ) else {
-            return;
-        };
-        src.set_buffer(Some(&buf));
-        src.set_loop(true);
-        filter.set_type(BiquadFilterType::Lowpass);
-        filter.frequency().set_value(900.0);
-        let t = ctx.current_time();
-        let _ = gain.gain().set_value_at_time(0.0, t);
-        let _ = gain.gain().linear_ramp_to_value_at_time(0.35, t + 2.0);
-        let _ = src.connect_with_audio_node(&filter);
-        let _ = filter.connect_with_audio_node(&gain);
-        let _ = gain.connect_with_audio_node(&ctx.destination());
-        let node: &web_sys::AudioScheduledSourceNode = &src;
-        let _ = node.start();
-        a.noise = Some((src, gain));
-    });
-}
-
-pub fn noise_off() {
-    AUDIO.with(|a| {
-        if let Some(audio) = a.borrow_mut().as_mut() {
-            if let Some((src, gain)) = audio.noise.take() {
-                let t = audio.ctx.current_time();
-                let _ = gain.gain().cancel_scheduled_values(t);
-                let _ = gain.gain().set_value_at_time(gain.gain().value(), t);
-                let _ = gain.gain().linear_ramp_to_value_at_time(0.0, t + 1.0);
-                let node: &web_sys::AudioScheduledSourceNode = &src;
-                let _ = node.stop_with_when(t + 1.1);
-            }
-        }
-    });
+    }
 }
 
 /// 用瀏覽器內建語音合成念出提示（台灣華語、放慢語速）。

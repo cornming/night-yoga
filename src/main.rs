@@ -1,5 +1,7 @@
 mod app;
 mod data;
+mod figure;
+mod music;
 mod web;
 
 fn main() {

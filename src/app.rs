@@ -1,4 +1,5 @@
 use crate::data::{Breathing, DATA, Phase, Step, StepKind};
+use crate::music::{self, Music};
 use crate::web;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -10,21 +11,25 @@ const KEY_SETTINGS: &str = "night-yoga:settings";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 struct Settings {
     voice: bool,
-    noise: bool,
     chime: bool,
     /// 畫面亮度百分比（40–100）
     brightness: u32,
+    music: Music,
+    /// 音樂音量（0–100）
+    music_vol: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             voice: true,
-            noise: false,
             chime: true,
             brightness: 80,
+            music: Music::Crystal,
+            music_vol: 55,
         }
     }
 }
@@ -49,6 +54,8 @@ struct Session {
     last_phase: RwSignal<Option<Phase>>,
     settings: RwSignal<Settings>,
     log: RwSignal<BTreeMap<String, u32>>,
+    /// 首頁正在試聽背景音樂
+    preview: RwSignal<bool>,
 }
 
 impl Session {
@@ -70,6 +77,7 @@ impl Session {
             last_phase: RwSignal::new(None),
             settings: RwSignal::new(settings),
             log: RwSignal::new(log),
+            preview: RwSignal::new(false),
         }
     }
 
@@ -77,11 +85,47 @@ impl Session {
         self.settings.update(f);
         let s = self.settings.get_untracked();
         web::save(KEY_SETTINGS, &serde_json::to_string(&s).unwrap_or_default());
-        if self.screen.get_untracked() == Screen::Player {
-            if s.noise {
-                web::noise_on();
-            } else {
-                web::noise_off();
+    }
+
+    /// 練習中或試聽中，讓正在播的音樂跟上目前的設定。
+    fn apply_music(&self) {
+        let st = self.settings.get_untracked();
+        if self.screen.get_untracked() != Screen::Player && !self.preview.get_untracked() {
+            return;
+        }
+        if st.music == Music::None {
+            music::stop(1.5);
+            self.preview.set(false);
+        } else {
+            music::play(st.music, st.music_vol);
+        }
+    }
+
+    fn choose_music(&self, m: Music) {
+        self.update_settings(|x| x.music = m);
+        self.apply_music();
+    }
+
+    fn cycle_music(&self) {
+        let cur = self.settings.get_untracked().music;
+        let i = Music::ALL.iter().position(|m| *m == cur).unwrap_or(0);
+        self.choose_music(Music::ALL[(i + 1) % Music::ALL.len()]);
+    }
+
+    fn set_music_volume(&self, v: u32) {
+        self.update_settings(|x| x.music_vol = v.min(100));
+        music::set_volume(v);
+    }
+
+    fn toggle_preview(&self) {
+        if self.preview.get_untracked() {
+            music::stop(1.0);
+            self.preview.set(false);
+        } else {
+            let st = self.settings.get_untracked();
+            if st.music != Music::None {
+                music::play(st.music, st.music_vol);
+                self.preview.set(true);
             }
         }
     }
@@ -98,8 +142,12 @@ impl Session {
         self.practiced.set(0);
         self.screen.set(Screen::Player);
         web::keep_awake();
-        if self.settings.get_untracked().noise {
-            web::noise_on();
+        self.preview.set(false);
+        let st = self.settings.get_untracked();
+        if st.music == Music::None {
+            music::stop(1.0);
+        } else {
+            music::play(st.music, st.music_vol);
         }
         self.announce();
         scroll_top();
@@ -203,15 +251,16 @@ impl Session {
         secs
     }
 
-    fn cleanup(&self) {
+    fn cleanup(&self, fade: f64) {
         web::release_awake();
-        web::noise_off();
+        music::stop(fade);
         web::stop_speaking();
     }
 
     fn finish(&self) {
         let secs = self.record();
-        self.cleanup();
+        // 結束時音樂慢慢淡出，不要突然停掉
+        self.cleanup(8.0);
         if self.settings.get_untracked().voice {
             web::speak("練習結束，晚安，好好睡一覺。");
         }
@@ -221,7 +270,7 @@ impl Session {
 
     fn exit(&self) {
         self.record();
-        self.cleanup();
+        self.cleanup(1.5);
         self.screen.set(Screen::Home);
         scroll_top();
     }
@@ -261,6 +310,7 @@ pub fn App() -> impl IntoView {
     let s = Session::new();
     provide_context(s);
     set_interval(move || s.tick(), Duration::from_millis(1000));
+    set_interval(music::tick, Duration::from_millis(400));
 
     view! {
         <div class="app" style:filter=move || format!("brightness({}%)", s.settings.get().brightness)>
@@ -352,6 +402,7 @@ fn Home() -> impl IntoView {
         </section>
 
         <Stats/>
+        <MusicPanel/>
         <SettingsPanel/>
 
         <footer class="foot">
@@ -439,7 +490,6 @@ fn Toggle(label: &'static str, on: Signal<bool>, #[prop(into)] set: Callback<()>
 fn SettingsPanel() -> impl IntoView {
     let s = expect_context::<Session>();
     let voice = Signal::derive(move || s.settings.get().voice);
-    let noise = Signal::derive(move || s.settings.get().noise);
     let chime = Signal::derive(move || s.settings.get().chime);
 
     view! {
@@ -448,9 +498,62 @@ fn SettingsPanel() -> impl IntoView {
             <div class="toggles">
                 <Toggle label="語音提示" on=voice set=move |_| s.update_settings(|x| x.voice = !x.voice)/>
                 <Toggle label="換式鈴聲" on=chime set=move |_| s.update_settings(|x| x.chime = !x.chime)/>
-                <Toggle label="背景雨聲" on=noise set=move |_| s.update_settings(|x| x.noise = !x.noise)/>
             </div>
             <BrightnessSlider/>
+        </section>
+    }
+}
+
+#[component]
+fn MusicPanel() -> impl IntoView {
+    let s = expect_context::<Session>();
+    let chips = Music::ALL
+        .into_iter()
+        .map(|m| {
+            view! {
+                <button
+                    class="mchip"
+                    class:on=move || s.settings.get().music == m
+                    aria-pressed=move || (s.settings.get().music == m).to_string()
+                    on:click=move |_| s.choose_music(m)
+                >
+                    {m.label()}
+                </button>
+            }
+        })
+        .collect_view();
+
+    view! {
+        <section class="card music">
+            <div class="card-head">
+                <h2>"背景音樂"</h2>
+                <button
+                    class="btn ghost small"
+                    disabled=move || s.settings.get().music == Music::None
+                    on:click=move |_| s.toggle_preview()
+                >
+                    {move || if s.preview.get() { "■ 停止試聽" } else { "▶ 試聽" }}
+                </button>
+            </div>
+            <div class="mchips">{chips}</div>
+            <p class="desc">{move || s.settings.get().music.desc()}</p>
+            <label class="slider">
+                <span>"音樂音量"</span>
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    prop:value=move || s.settings.get().music_vol.to_string()
+                    on:input=move |ev| {
+                        if let Ok(v) = event_target_value(&ev).parse::<u32>() {
+                            s.set_music_volume(v);
+                        }
+                    }
+                />
+                <span class="val">{move || format!("{}%", s.settings.get().music_vol)}</span>
+            </label>
+            <p class="hint">"音樂都是瀏覽器即時合成的，不需要下載，離線也能播放。"</p>
         </section>
     }
 }
@@ -507,7 +610,16 @@ fn Player() -> impl IntoView {
                     <div class="ptitle">{move || s.title.get()}</div>
                     <div class="pstep">{move || format!("第 {} / {} 步", s.idx.get() + 1, count())}</div>
                 </div>
-                <button class="icon-btn" aria-label="結束練習" on:click=move |_| s.exit()>"✕"</button>
+                <div class="top-actions">
+                    <button
+                        class="music-btn"
+                        aria-label="切換背景音樂"
+                        on:click=move |_| s.cycle_music()
+                    >
+                        {move || format!("♪ {}", s.settings.get().music.label())}
+                    </button>
+                    <button class="icon-btn" aria-label="結束練習" on:click=move |_| s.exit()>"✕"</button>
+                </div>
             </div>
             <div class="bar"><span style:width=move || format!("{:.1}%", progress())></span></div>
 
@@ -554,19 +666,8 @@ fn Player() -> impl IntoView {
 
 #[component]
 fn Figure(idx: usize) -> impl IntoView {
-    let p = &DATA.poses[idx];
-    let paths = p
-        .paths
-        .iter()
-        .map(|d| view! { <path d=d.clone()></path> })
-        .collect_view();
-    view! {
-        <svg class="figure" viewBox="0 0 200 120" aria-hidden="true">
-            <line class="ground" x1="6" y1="107" x2="194" y2="107"></line>
-            {paths}
-            <circle cx=p.head[0].to_string() cy=p.head[1].to_string() r="9"></circle>
-        </svg>
-    }
+    // SVG 由 figure 模組依骨架算好，直接放進頁面（內容來自程式內建資料）
+    view! { <div class="figure-wrap" inner_html=DATA.poses[idx].svg.clone()></div> }
 }
 
 #[component]
