@@ -1,5 +1,6 @@
 use crate::data::{Breathing, DATA, Phase, Step, StepKind};
 use crate::music::{self, Music};
+use crate::voice;
 use crate::web;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -168,17 +169,11 @@ impl Session {
         else {
             return;
         };
-        let text = match step.kind {
-            StepKind::Pose { idx, side } => {
-                let p = &DATA.poses[idx];
-                match side {
-                    Some(sd) => format!("{}，{}。{}", p.zh, sd.label(), p.cue),
-                    None => format!("{}。{}", p.zh, p.cue),
-                }
-            }
-            StepKind::Breath { idx } => format!("{}，跟著圓圈慢慢呼吸。", DATA.breathing[idx].name),
+        let line = match step.kind {
+            StepKind::Pose { idx, side } => voice::pose(idx, side),
+            StepKind::Breath { idx } => voice::breath(idx),
         };
-        web::speak(&text);
+        web::say(&line.id, &line.text);
     }
 
     fn goto(&self, i: usize) {
@@ -229,7 +224,8 @@ impl Session {
             if self.last_phase.get_untracked() != Some(info.phase) {
                 self.last_phase.set(Some(info.phase));
                 if info.phase != Phase::Prepare && self.settings.get_untracked().voice {
-                    web::speak(info.phase.label());
+                    let line = voice::phase(info.phase);
+                    web::say(&line.id, &line.text);
                 }
             }
         }
@@ -262,7 +258,8 @@ impl Session {
         // 結束時音樂慢慢淡出，不要突然停掉
         self.cleanup(8.0);
         if self.settings.get_untracked().voice {
-            web::speak("練習結束，晚安，好好睡一覺。");
+            let line = voice::ending();
+            web::say(&line.id, &line.text);
         }
         self.screen.set(Screen::Done { secs });
         scroll_top();

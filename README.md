@@ -6,7 +6,7 @@
 
 - 三組睡前課程（約 5／10／15 分鐘），十個溫和體式：人形示範圖（貓牛式會跟著呼吸動）、步驟、注意事項、左右側提示
 - 呼吸引導：4-7-8、延長吐氣、方塊呼吸，圓圈跟著吸吐縮放
-- 語音提示（瀏覽器內建語音合成，台灣華語）、換式鈴聲
+- 語音提示、換式鈴聲：優先播放預錄的自然語音（`public/voice/*.mp3`，可用 Google AI Studio 產生），沒有檔案的句子退回瀏覽器內建語音合成（台灣華語）
 - 背景音樂：水晶鋼琴、頌缽、溫暖長音、雨聲、海浪，全部用 Web Audio 即時合成（不需音檔、離線可用、無版權問題），可試聽、調音量，練習中也能切換
 - 暫停／上一個／下一個，練習中螢幕常亮（Screen Wake Lock）
 - 練習紀錄：連續天數、練習天數、累計分鐘、五週打卡格（存在 localStorage）
@@ -36,13 +36,28 @@
 - `data/breathing.json`：`pre` 準備秒數、`cycles` 輪數、`ratio` 吸／停／吐／停秒數
 - `data/routines.json`：課程組合，`{ "pose": "twist", "seconds": 45, "side": "left" }` 或 `{ "breath": "478" }`
 
+## 預錄語音（自然語音）
+
+瀏覽器內建語音聽起來比較機械。App 會先找 `public/voice/<id>.mp3`，有就播檔案，沒有（或播不出來）才用內建語音念，所以可以一句一句慢慢換。
+
+- `tools/voice/script.csv` 是所有會念的話（目前 17 句，id 對應檔名），由 `src/voice.rs` 的 `catalog()` 決定；`cargo test` 會檢查兩邊一致。改了 `data/` 裡的口訣或課程後，執行 `WRITE_SCRIPT=1 cargo test write_script` 重新產生這個檔案。
+- 產生語音檔：到 <https://aistudio.google.com> 的 Get API key 申請金鑰（不要放進程式或 repo），並安裝 ffmpeg，然後在 repo 根目錄執行
+
+  ```bash
+  export GEMINI_API_KEY=你的金鑰
+  python3 tools/voice/generate.py
+  ```
+
+  已經有的檔案會略過，`--force` 重做，`--only phase_inhale end` 只做指定幾句，`--voice Achernar` 換聲音（Zephyr 明亮、Achernar／Sulafat／Vindemiatrix 較柔和）。若 API 回應格式不符，加 `--api classic` 改用 generateContent 格式。
+- 逐句聽過、不滿意的刪掉重跑，再提交 `public/voice/`。重新產生語音檔後，記得把 `public/sw.js` 的 `CACHE` 版本號加一，已安裝的使用者才會拿到新檔。
+
 ## 本機開發
 
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install --locked trunk
 trunk serve --open        # http://127.0.0.1:8080
-cargo test                # 資料格式與呼吸階段計算的測試
+cargo test                # 資料格式、呼吸階段計算與語音稿一致性的測試
 ```
 
 ## 部署到 GitHub Pages

@@ -2,14 +2,17 @@
 //! 這些物件不是 Send，放在 thread_local（WASM 只有單一執行緒）。
 
 use js_sys::{Function, Promise, Reflect};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use web_sys::{AudioContext, OscillatorType, SpeechSynthesisUtterance};
+use web_sys::{AudioContext, HtmlAudioElement, OscillatorType, SpeechSynthesisUtterance};
 
 thread_local! {
     static AUDIO: RefCell<Option<AudioContext>> = const { RefCell::new(None) };
     static WAKE: RefCell<Option<JsValue>> = const { RefCell::new(None) };
+    static CLIP: RefCell<Option<HtmlAudioElement>> = const { RefCell::new(None) };
+    /// 每念一句就加一，讓晚到的「播不出來」回呼知道這句已經過時。
+    static SAY_SEQ: Cell<u32> = const { Cell::new(0) };
 }
 
 /// 整個 App 共用一個 AudioContext。
@@ -48,8 +51,32 @@ pub fn chime() {
     }
 }
 
+/// 念一句提示：有預錄語音檔（voice/<id>.mp3）就播檔案，沒有或播不出來就用內建語音念 [text]。
+pub fn say(id: &str, text: &str) {
+    stop_speaking();
+    let seq = SAY_SEQ.get();
+    let audio = HtmlAudioElement::new_with_src(&format!("voice/{id}.mp3")).ok();
+    let Some(audio) = audio else {
+        speak(text);
+        return;
+    };
+    audio.set_volume(0.95);
+    let Ok(promise) = audio.play() else {
+        speak(text);
+        return;
+    };
+    CLIP.with(|c| *c.borrow_mut() = Some(audio));
+    let text = text.to_string();
+    spawn_local(async move {
+        // 檔案不存在（404）時 play() 會失敗；被下一句打斷也會失敗，但那時 SAY_SEQ 已經變了
+        if JsFuture::from(promise).await.is_err() && SAY_SEQ.get() == seq {
+            speak(&text);
+        }
+    });
+}
+
 /// 用瀏覽器內建語音合成念出提示（台灣華語、放慢語速）。
-pub fn speak(text: &str) {
+fn speak(text: &str) {
     let Some(win) = web_sys::window() else { return };
     let Ok(synth) = win.speech_synthesis() else {
         return;
@@ -82,6 +109,12 @@ pub fn speak(text: &str) {
 }
 
 pub fn stop_speaking() {
+    SAY_SEQ.set(SAY_SEQ.get().wrapping_add(1));
+    CLIP.with(|c| {
+        if let Some(a) = c.borrow_mut().take() {
+            let _ = a.pause();
+        }
+    });
     if let Some(Ok(s)) = web_sys::window().map(|w| w.speech_synthesis()) {
         s.cancel();
     }
