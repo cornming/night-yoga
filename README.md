@@ -50,6 +50,7 @@
 
   已經有的檔案會略過，`--force` 重做，`--only phase_inhale end` 只做指定幾句，`--voice Achernar` 換聲音（Zephyr 明亮、Achernar／Sulafat／Vindemiatrix 較柔和）。若 API 回應格式不符，加 `--api classic` 改用 generateContent 格式。
 - 逐句聽過、不滿意的刪掉重跑，再提交 `public/voice/`。重新產生語音檔後，記得把 `public/sw.js` 的 `CACHE` 版本號加一，已安裝的使用者才會拿到新檔。
+- 驗收：`python tools/voice/verify.py` 檢查格式、語速、靜音、停頓、音量、爆音、音高起伏；加 `--listen` 再請 Gemini 聽寫並評分（需要 `GEMINI_API_KEY`，評分只供篩選）。結果在 `tools/voice/report/`（不進版控），`review.html` 可直接聽、標「過／重做」並匯出重做指令。
 
 ## 本機開發
 
