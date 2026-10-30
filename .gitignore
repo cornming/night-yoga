@@ -1,2 +1,5 @@
 /target
 /dist
+
+# 語音驗收報告（verify.py 產生）
+tools/voice/report/

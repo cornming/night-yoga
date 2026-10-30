@@ -2,6 +2,7 @@ mod app;
 mod data;
 mod figure;
 mod music;
+mod voice;
 mod web;
 
 fn main() {

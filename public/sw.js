@@ -1,5 +1,5 @@
 // 離線快取：頁面先走網路（才拿得到新版），其他檔案先查快取。
-const CACHE = "night-yoga-v1";
+const CACHE = "night-yoga-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
