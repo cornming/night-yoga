@@ -169,6 +169,8 @@ h2 { font-size: 1.25rem; margin: 36px 0 14px; color: var(--text); }
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
   margin-top: 36px; color: var(--dim); font-size: 0.78rem;
 }
+.foot .note { flex-basis: 100%; line-height: 1.6; }
+.foot a { color: inherit; text-decoration: underline; }
 
 /* ── 練習畫面 ───────────────────────── */
 .player { max-width: 560px; margin: 0 auto; min-height: calc(100dvh - 64px); display: flex; flex-direction: column; }

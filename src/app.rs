@@ -52,6 +52,8 @@ struct Session {
     remaining: RwSignal<u32>,
     paused: RwSignal<bool>,
     practiced: RwSignal<u32>,
+    /// 目前這次練習的課程代號；單獨的呼吸練習不是「課程」，所以是 None。
+    course: RwSignal<Option<String>>,
     last_phase: RwSignal<Option<Phase>>,
     settings: RwSignal<Settings>,
     log: RwSignal<BTreeMap<String, u32>>,
@@ -75,6 +77,7 @@ impl Session {
             remaining: RwSignal::new(0),
             paused: RwSignal::new(false),
             practiced: RwSignal::new(0),
+            course: RwSignal::new(None),
             last_phase: RwSignal::new(None),
             settings: RwSignal::new(settings),
             log: RwSignal::new(log),
@@ -131,12 +134,13 @@ impl Session {
         }
     }
 
-    fn start(&self, title: String, steps: Vec<Step>) {
+    fn start(&self, title: String, steps: Vec<Step>, course: Option<String>) {
         if steps.is_empty() {
             return;
         }
         self.remaining.set(steps[0].seconds);
         self.title.set(title);
+        self.course.set(course);
         self.steps.set(steps);
         self.idx.set(0);
         self.paused.set(false);
@@ -255,6 +259,13 @@ impl Session {
 
     fn finish(&self) {
         let secs = self.record();
+        // 匿名統計：整組課程走完、而且至少練了一半的時間才算「完成」，連按「下一個」跳到最後不算
+        if let Some(course) = self.course.get_untracked() {
+            let total = self.steps.with_untracked(|v| v.iter().map(|s| s.seconds).sum::<u32>());
+            if total > 0 && secs * 2 >= total {
+                web::report_completion("night-yoga", &course);
+            }
+        }
         // 結束時音樂慢慢淡出，不要突然停掉
         self.cleanup(8.0);
         if self.settings.get_untracked().voice {
@@ -333,6 +344,7 @@ fn Home() -> impl IntoView {
         .map(|r| {
             let title = r.title.clone();
             let steps = r.steps.clone();
+            let course = r.id.clone();
             let chips = r.pose_names().into_iter().map(|n| view! { <span class="chip">{n}</span> }).collect_view();
             view! {
                 <article class="card routine">
@@ -342,7 +354,7 @@ fn Home() -> impl IntoView {
                     </div>
                     <p class="desc">{r.desc.clone()}</p>
                     <div class="chips">{chips}</div>
-                    <button class="btn primary" on:click=move |_| s.start(title.clone(), steps.clone())>
+                    <button class="btn primary" on:click=move |_| s.start(title.clone(), steps.clone(), Some(course.clone()))>
                         "開始"
                     </button>
                 </article>
@@ -367,7 +379,7 @@ fn Home() -> impl IntoView {
                     <p class="desc">{b.desc.clone()}</p>
                     <button
                         class="btn ghost"
-                        on:click=move |_| s.start(title.clone(), vec![Step { kind: StepKind::Breath { idx }, seconds: total }])
+                        on:click=move |_| s.start(title.clone(), vec![Step { kind: StepKind::Breath { idx }, seconds: total }], None)
                     >
                         "開始呼吸"
                     </button>
@@ -405,6 +417,10 @@ fn Home() -> impl IntoView {
         <footer class="foot">
             <span>{format!("v{VERSION}")}</span>
             <span>"練習紀錄只存在這台裝置的瀏覽器裡"</span>
+            <span class="note">
+                "整組課程完成時，會匿名記一筆（課程、當下的小時），不含任何個人資料；"
+                <a href="https://cornming.github.io/stats/" target="_blank" rel="noopener">"看大家的統計"</a>
+            </span>
         </footer>
     }
 }

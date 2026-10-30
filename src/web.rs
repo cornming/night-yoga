@@ -191,3 +191,23 @@ pub fn date_key(days_ago: u32) -> String {
 pub fn weekday_today() -> u32 {
     js_sys::Date::new_0().get_day()
 }
+
+/// 匿名完成統計的收集網址（Google Apps Script，見 cornming.github.io 的 /stats/）。
+const STATS_URL: &str = "https://script.google.com/macros/s/AKfycbzN1cM7oU-eeatBeISxnm3n8CbYiQej-aOfmIGljFUAAFmRtcP-9NruWs8_RMkhsSpkVA/exec";
+
+/// 回報「完成一次」。只送作品、課程代號、當下的小時（本地時間 0 到 23），不送任何能識別個人的資料。
+/// 失敗就算了，不影響練習。
+pub fn report_completion(app: &str, course: &str) {
+    let hour = js_sys::Date::new_0().get_hours();
+    let body = format!(r#"{{"app":"{app}","course":"{course}","hour":{hour}}}"#);
+    let Some(window) = web_sys::window() else { return };
+    let init = web_sys::RequestInit::new();
+    init.set_method("POST");
+    // Apps Script 不支援跨網域預檢，用 no-cors 的簡單請求；回應讀不到，也不需要
+    init.set_mode(web_sys::RequestMode::NoCors);
+    init.set_body(&JsValue::from_str(&body));
+    let promise = window.fetch_with_str_and_init(STATS_URL, &init);
+    spawn_local(async move {
+        let _ = JsFuture::from(promise).await;
+    });
+}

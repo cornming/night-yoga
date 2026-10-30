@@ -12,6 +12,14 @@
 - 練習紀錄：連續天數、練習天數、累計分鐘、五週打卡格（存在 localStorage）
 - 夜間配色、亮度調整、PWA（加到主畫面、離線可用）
 
+## 匿名完成統計
+
+整組課程走完時，網頁會匿名送出一筆紀錄：**課程代號（quick／standard／deep）、完成當下的小時（手機的當地時間 0 到 23）**，伺服器端另外記下時間。沒有帳號、沒有裝置編號、不存 IP，也不使用 cookie。大家的統計公開在 <https://cornming.github.io/stats/>（累計完成次數、一天中的使用時段、課程排行榜）。
+
+- 只有「整組課程走完，而且實際練習時間至少是課程總長的一半」才算一次完成；連按「下一個」跳到最後、中途離開、單獨的呼吸練習都不算。
+- 收集端是一份 Google 試算表加 Apps Script，程式碼與部署步驟在 [cornming.github.io 的 `apps-script/`](https://github.com/cornming/cornming.github.io/tree/main/apps-script)。網址寫在 `src/web.rs` 的 `STATS_URL`。
+- 收集網址是公開的、沒有登入驗證，所以數字只是約略值，不是嚴謹的使用人數。
+
 ## 設計參考
 
 | 參考專案 | 借鏡的部分 |
