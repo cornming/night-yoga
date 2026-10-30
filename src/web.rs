@@ -196,18 +196,33 @@ pub fn weekday_today() -> u32 {
 const STATS_URL: &str = "https://script.google.com/macros/s/AKfycbzN1cM7oU-eeatBeISxnm3n8CbYiQej-aOfmIGljFUAAFmRtcP-9NruWs8_RMkhsSpkVA/exec";
 
 /// 回報「完成一次」。只送作品、課程代號、當下的小時（本地時間 0 到 23），不送任何能識別個人的資料。
-/// 失敗就算了，不影響練習。
+/// 統計只是附加功能：任何一步出錯都靜靜放棄，絕不能影響使用者繼續使用。
 pub fn report_completion(app: &str, course: &str) {
+    let _ = try_report(app, course);
+}
+
+/// 每一步都用 `?` 往外丟：沒有 window、沒有 fetch、fetch 同步丟出例外時只會得到 None。
+/// （WASM 一旦 panic 整個頁面就停了，所以這裡不能有 unwrap，也不能用會丟例外的綁定。）
+fn try_report(app: &str, course: &str) -> Option<()> {
+    let window = web_sys::window()?;
+    let fetch = Reflect::get(&window, &JsValue::from_str("fetch")).ok()?.dyn_into::<Function>().ok()?;
     let hour = js_sys::Date::new_0().get_hours();
     let body = format!(r#"{{"app":"{app}","course":"{course}","hour":{hour}}}"#);
-    let Some(window) = web_sys::window() else { return };
-    let init = web_sys::RequestInit::new();
-    init.set_method("POST");
-    // Apps Script 不支援跨網域預檢，用 no-cors 的簡單請求；回應讀不到，也不需要
-    init.set_mode(web_sys::RequestMode::NoCors);
-    init.set_body(&JsValue::from_str(&body));
-    let promise = window.fetch_with_str_and_init(STATS_URL, &init);
+    let init = js_sys::Object::new();
+    // Apps Script 不支援跨網域預檢，所以用 no-cors 的簡單請求；回應讀不到，也不需要。
+    // keepalive：使用者回報後馬上關掉分頁，請求也能送完。
+    for (key, value) in [
+        ("method", JsValue::from_str("POST")),
+        ("mode", JsValue::from_str("no-cors")),
+        ("body", JsValue::from_str(&body)),
+        ("keepalive", JsValue::TRUE),
+    ] {
+        Reflect::set(&init, &JsValue::from_str(key), &value).ok()?;
+    }
+    let promise = fetch.call2(&window, &JsValue::from_str(STATS_URL), &init).ok()?.dyn_into::<Promise>().ok()?;
     spawn_local(async move {
+        // 網路不通、被擋、逾時都會到這裡，直接忽略
         let _ = JsFuture::from(promise).await;
     });
+    Some(())
 }

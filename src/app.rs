@@ -259,13 +259,6 @@ impl Session {
 
     fn finish(&self) {
         let secs = self.record();
-        // 匿名統計：整組課程走完、而且至少練了一半的時間才算「完成」，連按「下一個」跳到最後不算
-        if let Some(course) = self.course.get_untracked() {
-            let total = self.steps.with_untracked(|v| v.iter().map(|s| s.seconds).sum::<u32>());
-            if total > 0 && secs * 2 >= total {
-                web::report_completion("night-yoga", &course);
-            }
-        }
         // 結束時音樂慢慢淡出，不要突然停掉
         self.cleanup(8.0);
         if self.settings.get_untracked().voice {
@@ -274,6 +267,19 @@ impl Session {
         }
         self.screen.set(Screen::Done { secs });
         scroll_top();
+        // 匿名統計放在最後：前面該做的（紀錄、完成畫面）都做完了才回報，回報出什麼事都不影響使用者
+        self.report_if_completed(secs);
+    }
+
+    /// 整組課程走完、而且至少練了一半的時間才算「完成」；連按「下一個」跳到最後不算。
+    /// 同一次練習只回報一次。
+    fn report_if_completed(&self, secs: u32) {
+        let Some(course) = self.course.get_untracked() else { return };
+        self.course.set(None);
+        let total = self.steps.with_untracked(|v| v.iter().map(|s| s.seconds).sum::<u32>());
+        if total > 0 && secs.saturating_mul(2) >= total {
+            web::report_completion("night-yoga", &course);
+        }
     }
 
     fn exit(&self) {
