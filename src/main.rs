@@ -1,4 +1,5 @@
 mod app;
+mod coach;
 mod data;
 mod figure;
 mod music;

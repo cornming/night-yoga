@@ -235,6 +235,10 @@ h2 { font-size: 1.25rem; margin: 36px 0 14px; color: var(--text); }
 .breath h2 { margin: 0; font-size: 1.4rem; }
 .cycle { color: var(--muted); margin: 6px 0 0; }
 
+.coach-tip {
+  text-align: center; color: var(--amber); font-size: 1rem; line-height: 1.6;
+  min-height: 3.2em; margin: 14px 0 0; padding: 0 8px;
+}
 .next { text-align: center; color: var(--dim); font-size: 0.88rem; margin-top: auto; padding-top: 22px; }
 .controls { display: flex; justify-content: center; align-items: center; gap: 22px; margin: 14px 0 6px; }
 .paused { text-align: center; color: var(--amber); margin: 6px 0 0; }

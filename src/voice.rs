@@ -81,6 +81,10 @@ pub fn catalog() -> Vec<Line> {
         add(phase(p));
     }
     add(ending());
+    // 動作中的引導（提醒、倒數、換邊、呼吸輪次）
+    for line in crate::coach::catalog() {
+        add(line);
+    }
     out
 }
 

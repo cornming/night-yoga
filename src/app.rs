@@ -1,6 +1,7 @@
+use crate::coach;
 use crate::data::{Breathing, DATA, Phase, Step, StepKind};
 use crate::music::{self, Music};
-use crate::voice;
+use crate::voice::{self, Line};
 use crate::web;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 struct Settings {
     voice: bool,
     chime: bool,
+    /// 動作中的引導：提醒、倒數、換邊
+    coach: bool,
     /// 畫面亮度百分比（40–100）
     brightness: u32,
     music: Music,
@@ -28,6 +31,7 @@ impl Default for Settings {
         Self {
             voice: true,
             chime: true,
+            coach: true,
             brightness: 80,
             music: Music::Crystal,
             music_vol: 55,
@@ -52,6 +56,8 @@ struct Session {
     remaining: RwSignal<u32>,
     paused: RwSignal<bool>,
     practiced: RwSignal<u32>,
+    /// 最近一句動作中的提醒（說出時的已練習秒數、文字），畫面上也顯示，沒開語音的人看得到
+    tip: RwSignal<Option<(u32, String)>>,
     /// 目前這次練習的課程代號；單獨的呼吸練習不是「課程」，所以是 None。
     course: RwSignal<Option<String>>,
     last_phase: RwSignal<Option<Phase>>,
@@ -77,6 +83,7 @@ impl Session {
             remaining: RwSignal::new(0),
             paused: RwSignal::new(false),
             practiced: RwSignal::new(0),
+            tip: RwSignal::new(None),
             course: RwSignal::new(None),
             last_phase: RwSignal::new(None),
             settings: RwSignal::new(settings),
@@ -140,6 +147,7 @@ impl Session {
         }
         self.remaining.set(steps[0].seconds);
         self.title.set(title);
+        self.tip.set(None);
         self.course.set(course);
         self.steps.set(steps);
         self.idx.set(0);
@@ -189,6 +197,7 @@ impl Session {
         let secs = self.steps.with_untracked(|v| v[i].seconds);
         self.idx.set(i);
         self.remaining.set(secs);
+        self.tip.set(None);
         self.announce();
     }
 
@@ -215,23 +224,49 @@ impl Session {
         }
         self.remaining.set(rem - 1);
 
-        // 呼吸步驟：每換一個階段念一次口令
-        let step = self
+        let i = self.idx.get_untracked();
+        let (step, next) = self
             .steps
-            .with_untracked(|v| v.get(self.idx.get_untracked()).cloned());
-        if let Some(Step {
-            kind: StepKind::Breath { idx },
-            seconds,
-        }) = step
-        {
-            let info = DATA.breathing[idx].phase_at(seconds - (rem - 1));
-            if self.last_phase.get_untracked() != Some(info.phase) {
-                self.last_phase.set(Some(info.phase));
-                if info.phase != Phase::Prepare && self.settings.get_untracked().voice {
-                    let line = voice::phase(info.phase);
-                    web::say(&line.id, &line.text);
+            .with_untracked(|v| (v.get(i).cloned(), v.get(i + 1).cloned()));
+        let settings = self.settings.get_untracked();
+        match step {
+            // 呼吸步驟：每換一個階段念一次口令；每一輪開始時改念「第二輪」「最後一輪」
+            Some(Step {
+                kind: StepKind::Breath { idx },
+                seconds,
+            }) => {
+                let info = DATA.breathing[idx].phase_at(seconds - (rem - 1));
+                if self.last_phase.get_untracked() != Some(info.phase) {
+                    self.last_phase.set(Some(info.phase));
+                    if info.phase != Phase::Prepare && settings.voice {
+                        let line = match info.phase {
+                            Phase::Inhale if settings.coach => coach::breath_cycle_line(idx, info.cycle),
+                            _ => None,
+                        }
+                        .unwrap_or_else(|| voice::phase(info.phase));
+                        web::say(&line.id, &line.text);
+                    }
                 }
             }
+            // 體式進行中：提醒、倒數、換邊
+            Some(step @ Step {
+                kind: StepKind::Pose { .. },
+                ..
+            }) if settings.coach => {
+                if let Some(line) = coach::pose_cue(&step, next.as_ref(), rem - 1) {
+                    self.say_cue(&line, settings.voice);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// 說一句動作中的引導。畫面上也顯示，沒開語音的人也看得到。
+    fn say_cue(&self, line: &Line, voice_on: bool) {
+        self.tip
+            .set(Some((self.practiced.get_untracked(), line.text.clone())));
+        if voice_on {
+            web::say(&line.id, &line.text);
         }
     }
 
@@ -510,6 +545,7 @@ fn SettingsPanel() -> impl IntoView {
     let s = expect_context::<Session>();
     let voice = Signal::derive(move || s.settings.get().voice);
     let chime = Signal::derive(move || s.settings.get().chime);
+    let coach = Signal::derive(move || s.settings.get().coach);
 
     view! {
         <section class="card settings">
@@ -517,6 +553,7 @@ fn SettingsPanel() -> impl IntoView {
             <div class="toggles">
                 <Toggle label="語音提示" on=voice set=move |_| s.update_settings(|x| x.voice = !x.voice)/>
                 <Toggle label="換式鈴聲" on=chime set=move |_| s.update_settings(|x| x.chime = !x.chime)/>
+                <Toggle label="動作中引導（提醒、倒數、換邊）" on=coach set=move |_| s.update_settings(|x| x.coach = !x.coach)/>
             </div>
             <BrightnessSlider/>
         </section>
@@ -651,6 +688,16 @@ fn Player() -> impl IntoView {
                 }
                 None => ().into_any(),
             }}
+
+            <p class="coach-tip" aria-live="polite">
+                {move || {
+                    s.tip
+                        .get()
+                        .filter(|(at, _)| s.practiced.get() < at + 7)
+                        .map(|(_, text)| text)
+                        .unwrap_or_default()
+                }}
+            </p>
 
             <div class="next">
                 {move || match next_title() {
