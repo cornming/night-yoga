@@ -357,7 +357,7 @@ def find_voice_dir():
     raise SystemExit("找不到語音資料夾，請用 --dir 指定")
 
 
-def write_reports(rows, out_dir, voice_dir, judge_model):
+def write_reports(rows, out_dir, voice_dir, judge_model, embed=True):
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "report.json"), "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=1)
@@ -372,6 +372,11 @@ def write_reports(rows, out_dir, voice_dir, judge_model):
             w.writerow([r["id"], r["text"], r["status"]] + [flat.get(c, "") for c in cols[3:-1]] + [" ／ ".join(r["problems"])])
 
     rel = os.path.relpath(voice_dir, out_dir).replace(os.sep, "/")
+    if embed:  # 音檔直接塞進網頁，在預覽窗或別台電腦開也能播
+        for r in rows:
+            mime = "audio/mpeg" if r["file"].endswith(".mp3") else "audio/wav"
+            with open(os.path.join(voice_dir, r["file"]), "rb") as f:
+                r["src"] = f"data:{mime};base64," + base64.b64encode(f.read()).decode("ascii")
     page = REVIEW_TEMPLATE.replace("__DATA__", json.dumps({"rows": rows, "audioDir": rel, "model": judge_model}, ensure_ascii=False).replace("</", "<\\/"))
     with open(os.path.join(out_dir, "review.html"), "w", encoding="utf-8") as f:
         f.write(page)
@@ -419,7 +424,7 @@ function render(){const f=document.getElementById("filter").value;const box=docu
   if(f=="flagged"&&r.status=="ok")return;if(f=="error"&&r.status!="error")return;if(f=="redo"&&mark[r.id]!="redo")return;shown++;
   const d=document.createElement("div");d.className="row "+r.status;
   d.innerHTML=`<div><span class="id">${esc(r.id)}</span></div><div class="txt">${esc(r.text)}</div>
-  <audio controls preload="none" src="${D.audioDir}/${encodeURIComponent(r.file)}"></audio>
+  <audio controls preload="none" src="${r.src||D.audioDir+"/"+encodeURIComponent(r.file)}"></audio>
   <div class="m">${metrics(r)}</div>
   ${r.errors.map(x=>`<div class="pb e">✖ ${esc(x)}</div>`).join("")}${r.flags.map(x=>`<div class="pb w">⚠ ${esc(x)}</div>`).join("")}
   <div class="verdict" style="margin-top:6px"><button data-v="pass" class="${mark[r.id]=="pass"?"on":""}">過</button> <button data-v="redo" class="${mark[r.id]=="redo"?"on":""}">重做</button></div>`;
@@ -443,6 +448,7 @@ def main():
     ap.add_argument("--only", nargs="*", help="只檢查這些 id")
     ap.add_argument("--listen", action="store_true", help="請 Gemini 轉寫並評分（需要 GEMINI_API_KEY）")
     ap.add_argument("--model", default=DEFAULT_JUDGE_MODEL, help=f"評審模型（預設 {DEFAULT_JUDGE_MODEL}）")
+    ap.add_argument("--no-embed", action="store_true", help="review.html 不內嵌音檔（檔案較小，但只能在本機用瀏覽器開）")
     ap.add_argument("--pause", type=float, default=0.5, help="每次呼叫 Gemini 之間等幾秒")
     args = ap.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
@@ -508,7 +514,7 @@ def main():
         known = {r["id"] for r in script}
         extra = sorted(os.path.splitext(f)[0] for f in os.listdir(voice_dir) if f.endswith((".wav", ".mp3")) and os.path.splitext(f)[0] not in known)
 
-    write_reports(rows, args.out, voice_dir, args.model)
+    write_reports(rows, args.out, voice_dir, args.model, embed=not args.no_embed)
     counts = {s: sum(1 for r in rows if r["status"] == s) for s in ("ok", "warn", "error")}
     print(f"\n檢查 {len(rows)} 句：正常 {counts['ok']}、警告 {counts['warn']}、嚴重 {counts['error']}")
     if missing:
