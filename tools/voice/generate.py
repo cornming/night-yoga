@@ -31,7 +31,7 @@ API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 ENDPOINT = API_ROOT + "/interactions"
 DEFAULT_MODEL = "gemini-3.8-flash-tts"
 CLASSIC_MODEL = "gemini-2.5-flash-preview-tts"  # --api classic 用的模型（generateContent 格式，語音合成最早公開的那一種）
-DEFAULT_VOICE = "Zephyr"  # 明亮親切；睡前課程也可以試比較柔和的 Achernar、Sulafat、Vindemiatrix
+DEFAULT_VOICE = "Sulafat"  # 已錄好的語音檔（git 紀錄 b31d051）用的就是這個聲音，新補錄的要同一個，聽起來才是同一個人。其他選擇：較柔和的 Achernar、Vindemiatrix，明亮的 Zephyr
 SAMPLE_RATE = 24000
 
 BASE_STYLE = "a warm, friendly and natural yoga teacher guiding a bedtime session, speaking Taiwanese Mandarin with natural, lively intonation, relaxed and never monotone"
@@ -41,6 +41,13 @@ STYLES = [
     ("breath_", "calm, soft and inviting, unhurried"),
     ("phase_", "very soft, slow and soothing, a single guiding word"),
     ("end", "warm, tender and sleepy, a gentle goodnight with a smile"),
+    # 動作中的引導（src/coach.rs）：睡前不要用健身教練的語氣，一律輕、慢、安穩
+    ("count_", "very soft, slow and hushed, a calm countdown number spoken gently, not energetic or shouted"),
+    ("switch_", "gentle and calm, a soft heads-up that we are about to switch sides, unhurried"),
+    ("cycle_", "calm, soft and inviting, announcing the next round of breathing, unhurried"),
+    ("tip_", "gentle, reassuring and unhurried, quietly reminding one detail of the pose, like talking to a friend"),
+    ("caution_", "gentle, caring and unhurried, a soft safety reminder that does not sound alarming"),
+    ("rest_", "very soft, slow and soothing, a relaxing reminder spoken with a smile in the voice"),
 ]
 
 
@@ -204,7 +211,17 @@ def main():
     parser.add_argument("--force", action="store_true", help="已有的檔案也重做")
     parser.add_argument("--no-polish", action="store_true", help="不要切靜音與調音量")
     parser.add_argument("--pause", type=float, default=1.0, help="每句之間等幾秒（避免超過速率限制）")
+    parser.add_argument("--dry-run", action="store_true", help="只列出會產生哪些句子與用的聲音、語氣，不呼叫 API（不需要金鑰）")
     args = parser.parse_args()
+
+    if args.dry_run:
+        with open(args.script, encoding="utf-8", newline="") as f:
+            rows = [r for r in csv.DictReader(f) if not args.only or r["id"] in args.only]
+        todo = [r for r in rows if args.force or not os.path.exists(os.path.join(args.out, r["id"] + ".mp3"))]
+        print(f"聲音：{args.voice}｜語音稿 {len(rows)} 句，會產生 {len(todo)} 句，已有檔案略過 {len(rows) - len(todo)} 句")
+        for r in todo:
+            print(f"  {r['id']}：{r['text']}\n      語氣：{style_for(r['id'])}")
+        return
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:

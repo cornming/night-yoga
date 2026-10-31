@@ -43,7 +43,7 @@ API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 
 # 各類語音「預期的風格」，只用來告訴評審該怎麼打風格貼合度
 STYLE_HINTS = {
-    "count_": "crisp, punchy, upbeat one-word countdown shout (workout class)",
+    "count_": "very soft, slow, hushed countdown number for a bedtime session (not energetic)",
     "coach_": "crisp, energetic coach cue",
     "cheer_": "warm, excited, genuinely encouraging with a smile in the voice",
     "move_": "clear, lively, friendly, demonstrating an exercise move",
@@ -54,6 +54,11 @@ STYLE_HINTS = {
     "breath_": "calm, soft, inviting, unhurried breathing instruction",
     "phase_": "very soft, slow, soothing single guiding word",
     "end": "warm, tender, sleepy goodnight with a smile",
+    "switch_": "gentle, calm heads-up that we are about to switch sides",
+    "cycle_": "calm, soft, inviting announcement of the next breathing round",
+    "tip_": "gentle, reassuring, unhurried reminder of one detail of the pose",
+    "caution_": "gentle, caring, unhurried safety reminder that does not sound alarming",
+    "rest_": "very soft, slow, soothing relaxing reminder",
 }
 # 這幾類不要求語氣起伏大（短促口令、單字）
 FLAT_OK = ("count_", "phase_")
