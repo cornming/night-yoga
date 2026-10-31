@@ -1,4 +1,5 @@
 use crate::coach;
+use crate::comeback;
 use crate::data::{Breathing, DATA, Phase, Step, StepKind};
 use crate::music::{self, Music};
 use crate::voice::{self, Line};
@@ -10,6 +11,11 @@ use std::time::Duration;
 
 const KEY_LOG: &str = "night-yoga:log";
 const KEY_SETTINGS: &str = "night-yoga:settings";
+/// 上次做的課程代號，首頁一鍵開始用
+const KEY_LAST: &str = "night-yoga:last";
+/// 這個瀏覽器完成過幾次（只存在這支手機，回報時只送分級）
+const KEY_COMPLETIONS: &str = "night-yoga:completions";
+const PAGE_URL: &str = "https://cornming.github.io/night-yoga/";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -148,6 +154,9 @@ impl Session {
         self.remaining.set(steps[0].seconds);
         self.title.set(title);
         self.tip.set(None);
+        if let Some(c) = &course {
+            web::save(KEY_LAST, c);
+        }
         self.course.set(course);
         self.steps.set(steps);
         self.idx.set(0);
@@ -313,7 +322,8 @@ impl Session {
         self.course.set(None);
         let total = self.steps.with_untracked(|v| v.iter().map(|s| s.seconds).sum::<u32>());
         if total > 0 && secs.saturating_mul(2) >= total {
-            web::report_completion("night-yoga", &course);
+            let nth = comeback::nth_bucket(web::bump_counter(KEY_COMPLETIONS));
+            web::report_completion("night-yoga", &course, nth);
         }
     }
 
@@ -441,6 +451,8 @@ fn Home() -> impl IntoView {
             "這裡都是溫和的伸展，不安排倒立和強烈後彎。任何動作感到疼痛就停下來；有傷病或正在懷孕，請先詢問醫師。"
         </aside>
 
+        <Resume/>
+
         <section>
             <h2>"睡前課程"</h2>
             <div class="grid">{routines}</div>
@@ -459,7 +471,7 @@ fn Home() -> impl IntoView {
             <span>{format!("v{VERSION}")}</span>
             <span>"練習紀錄只存在這台裝置的瀏覽器裡"</span>
             <span class="note">
-                "整組課程完成時，會匿名記一筆（課程、當下的小時），不含任何個人資料；"
+                "整組課程完成時，會匿名記一筆（課程、當下的小時、這支手機第幾次完成），不含任何個人資料；"
                 <a href="https://cornming.github.io/stats/" target="_blank" rel="noopener">"看大家的統計"</a>
             </span>
         </footer>
@@ -823,8 +835,89 @@ fn Done(secs: u32) -> impl IntoView {
                 {if secs >= 60 { format!("今天練習了 {mins} 分鐘。") } else { "今天也辛苦了。".to_string() }}
             </p>
             <p class="streak">{move || format!("連續 {} 天", s.log.with(streak))}</p>
+            {move || {
+                // 今天有記到才說，避免沒練滿 1 分鐘、連續天數沒增加時重複恭喜
+                let today = s.log.with(|l| l.get(&web::date_key(0)).copied().unwrap_or(0) > 0);
+                today
+                    .then(|| comeback::milestone(s.log.with(streak)))
+                    .flatten()
+                    .map(|t| view! { <p class="milestone">{t}</p> })
+            }}
             <p class="desc">"放下手機，關燈，讓呼吸維持剛才的節奏。"</p>
             <button class="btn primary" on:click=move |_| s.screen.set(Screen::Home)>"回到首頁"</button>
+            <Remind/>
         </section>
     }
+}
+
+/// 完成畫面：請使用者選一個時間，用手機的行事曆每天提醒。提醒由行事曆負責，網站不記錄時間。
+#[component]
+fn Remind() -> impl IntoView {
+    let time = RwSignal::new("22:00".to_string());
+    let when = move || comeback::parse_hhmm(&time.get()).unwrap_or((22, 0));
+    let title = "晚安瑜伽：睡前 5 分鐘";
+    let details = format!("做一次睡前伸展，慢慢把今天放下。{PAGE_URL}");
+    let ics = move |_| {
+        let (hh, mm) = when();
+        let text = comeback::reminder_ics("night-yoga", title, "做一次睡前伸展，慢慢把今天放下。", PAGE_URL, &web::tomorrow_ymd(), hh, mm);
+        web::download_text("night-yoga-reminder.ics", "text/calendar", &text);
+    };
+    let gcal = move || {
+        let (hh, mm) = when();
+        comeback::google_calendar_url(title, &details, &web::tomorrow_ymd(), hh, mm)
+    };
+    view! {
+        <section class="remind">
+            <h2>"明天也來一次？"</h2>
+            <p class="desc">"選一個時間，手機的行事曆每天會在那時提醒你。提醒由行事曆負責，這個網站不會記錄你選的時間。"</p>
+            <label class="time-pick">
+                <span>"每天"</span>
+                <input
+                    type="time"
+                    prop:value=move || time.get()
+                    on:input=move |ev| time.set(event_target_value(&ev))
+                />
+            </label>
+            <div class="remind-actions">
+                <button class="btn ghost" on:click=ics>"下載行事曆提醒"</button>
+                <a class="btn ghost" href=gcal target="_blank" rel="noopener">"用 Google 日曆加入"</a>
+            </div>
+        </section>
+    }
+}
+
+/// 隔了幾天沒練習：距離上次練習幾天（今天練過是 0），從沒練過是 None。
+fn days_since_last(log: &BTreeMap<String, u32>) -> Option<u32> {
+    (0..=365).find(|n| log.get(&web::date_key(*n)).copied().unwrap_or(0) > 0)
+}
+
+/// 首頁最上面的一鍵開始：做上次那組；第一次來就推最短的。睡前腦袋已經累了，不要再讓人挑。
+#[component]
+fn Resume() -> impl IntoView {
+    let s = expect_context::<Session>();
+    let last = web::load(KEY_LAST);
+    let remembered = last.as_deref().and_then(|id| DATA.routines.iter().find(|r| r.id == id));
+    let pick = remembered
+        .map(|r| (r, true))
+        .or_else(|| DATA.routines.iter().min_by_key(|r| r.total()).map(|r| (r, false)));
+    let welcome = comeback::welcome_back(s.log.with_untracked(days_since_last), "今晚先做最短的就好。");
+
+    pick.map(|(r, returning)| {
+        let title = r.title.clone();
+        let steps = r.steps.clone();
+        let course = r.id.clone();
+        view! {
+            <section class="card resume">
+                {welcome.map(|w| view! { <p class="welcome">{w}</p> })}
+                <p class="eyebrow">{if returning { "今晚繼續" } else { "第一次來？先從這組開始" }}</p>
+                <div class="card-head">
+                    <h2>{r.title.clone()}</h2>
+                    <span class="mins">{format!("約 {} 分鐘", r.minutes())}</span>
+                </div>
+                <button class="btn primary" on:click=move |_| s.start(title.clone(), steps.clone(), Some(course.clone()))>
+                    "開始"
+                </button>
+            </section>
+        }
+    })
 }

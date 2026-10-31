@@ -235,6 +235,20 @@ h2 { font-size: 1.25rem; margin: 36px 0 14px; color: var(--text); }
 .breath h2 { margin: 0; font-size: 1.4rem; }
 .cycle { color: var(--muted); margin: 6px 0 0; }
 
+.resume { border-color: rgba(240, 200, 150, 0.4); }
+.resume h2 { margin: 0; font-size: 1.2rem; }
+.resume .eyebrow { margin: 0 0 6px; color: var(--amber); font-size: 0.85rem; }
+.resume .welcome { margin: 0 0 10px; color: var(--text); }
+.milestone { color: var(--amber); margin: 6px 0 0; }
+.remind { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); text-align: center; }
+.remind h2 { margin: 0 0 6px; font-size: 1.05rem; }
+.time-pick { display: inline-flex; align-items: center; gap: 10px; margin: 8px 0 12px; color: var(--muted); }
+.time-pick input {
+  background: rgba(255, 255, 255, 0.06); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 10px; font: inherit; color-scheme: dark;
+}
+.remind-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+a.btn { display: inline-block; text-decoration: none; text-align: center; }
 .coach-tip {
   text-align: center; color: var(--amber); font-size: 1rem; line-height: 1.6;
   min-height: 3.2em; margin: 14px 0 0; padding: 0 8px;

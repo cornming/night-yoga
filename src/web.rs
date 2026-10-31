@@ -195,19 +195,20 @@ pub fn weekday_today() -> u32 {
 /// 匿名完成統計的收集網址（Google Apps Script，見 cornming.github.io 的 /stats/）。
 const STATS_URL: &str = "https://script.google.com/macros/s/AKfycbzN1cM7oU-eeatBeISxnm3n8CbYiQej-aOfmIGljFUAAFmRtcP-9NruWs8_RMkhsSpkVA/exec";
 
-/// 回報「完成一次」。只送作品、課程代號、當下的小時（本地時間 0 到 23），不送任何能識別個人的資料。
+/// 回報「完成一次」。只送作品、課程代號、當下的小時（本地時間 0 到 23）、這個瀏覽器第幾次完成的分級
+/// （1、2-3、4+），不送任何能識別個人的資料。
 /// 統計只是附加功能：任何一步出錯都靜靜放棄，絕不能影響使用者繼續使用。
-pub fn report_completion(app: &str, course: &str) {
-    let _ = try_report(app, course);
+pub fn report_completion(app: &str, course: &str, nth: &str) {
+    let _ = try_report(app, course, nth);
 }
 
 /// 每一步都用 `?` 往外丟：沒有 window、沒有 fetch、fetch 同步丟出例外時只會得到 None。
 /// （WASM 一旦 panic 整個頁面就停了，所以這裡不能有 unwrap，也不能用會丟例外的綁定。）
-fn try_report(app: &str, course: &str) -> Option<()> {
+fn try_report(app: &str, course: &str, nth: &str) -> Option<()> {
     let window = web_sys::window()?;
     let fetch = Reflect::get(&window, &JsValue::from_str("fetch")).ok()?.dyn_into::<Function>().ok()?;
     let hour = js_sys::Date::new_0().get_hours();
-    let body = format!(r#"{{"app":"{app}","course":"{course}","hour":{hour}}}"#);
+    let body = crate::comeback::completion_body(app, course, hour, nth);
     let init = js_sys::Object::new();
     // Apps Script 不支援跨網域預檢，所以用 no-cors 的簡單請求；回應讀不到，也不需要。
     // keepalive：使用者回報後馬上關掉分頁，請求也能送完。
@@ -225,4 +226,32 @@ fn try_report(app: &str, course: &str) -> Option<()> {
         let _ = JsFuture::from(promise).await;
     });
     Some(())
+}
+
+/// 這個瀏覽器的累計次數加一，回傳新的次數。儲存空間不能用時回傳 1，不影響其他功能。
+pub fn bump_counter(key: &str) -> u32 {
+    let n = load(key)
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .unwrap_or(0)
+        .saturating_add(1);
+    save(key, &n.to_string());
+    n
+}
+
+/// 明天的日期（本地時間），格式 YYYYMMDD。
+pub fn tomorrow_ymd() -> String {
+    let d = js_sys::Date::new(&JsValue::from_f64(js_sys::Date::now() + 86_400_000.0));
+    format!("{:04}{:02}{:02}", d.get_full_year(), d.get_month() + 1, d.get_date())
+}
+
+/// 把文字存成檔案讓使用者下載（用 data: 網址，不需要額外的 Blob API）。
+pub fn download_text(filename: &str, mime: &str, text: &str) {
+    let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return };
+    let Ok(a) = doc.create_element("a") else { return };
+    let enc: String = js_sys::encode_uri_component(text).into();
+    let _ = a.set_attribute("href", &format!("data:{mime};charset=utf-8,{enc}"));
+    let _ = a.set_attribute("download", filename);
+    if let Ok(a) = a.dyn_into::<web_sys::HtmlElement>() {
+        a.click();
+    }
 }
