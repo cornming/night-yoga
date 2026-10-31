@@ -3,6 +3,7 @@ mod coach;
 mod comeback;
 mod data;
 mod figure;
+mod inapp;
 mod music;
 mod voice;
 mod web;

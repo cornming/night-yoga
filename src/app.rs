@@ -1,6 +1,7 @@
 use crate::coach;
 use crate::comeback;
 use crate::data::{Breathing, DATA, Phase, Step, StepKind};
+use crate::inapp;
 use crate::music::{self, Music};
 use crate::voice::{self, Line};
 use crate::web;
@@ -440,6 +441,8 @@ fn Home() -> impl IntoView {
         .collect_view();
 
     view! {
+        <LineNotice/>
+
         <header class="hero">
             <div class="moon" aria-hidden="true"></div>
             <h1>"晚安瑜伽"</h1>
@@ -476,6 +479,70 @@ fn Home() -> impl IntoView {
             </span>
         </footer>
     }
+}
+
+/// 「複製連結」按下去之後的結果。
+#[derive(Clone, Copy, PartialEq)]
+enum CopyState {
+    Idle,
+    Copied,
+    /// 瀏覽器不讓程式寫剪貼簿，改請使用者長按網址自己複製
+    Failed,
+}
+
+/// 從 LINE 內建瀏覽器開啟時的提醒：那裡常常播不出語音，請使用者改用手機預設的瀏覽器。
+/// 不是 LINE 開的就什麼都不顯示。
+#[component]
+fn LineNotice() -> impl IntoView {
+    if !inapp::is_line_browser(&web::user_agent()) {
+        return None;
+    }
+    let href = web::page_href().unwrap_or_else(|| PAGE_URL.to_string());
+    let external = inapp::open_external_url(&href);
+    let copy = RwSignal::new(CopyState::Idle);
+    let gone = RwSignal::new(false);
+    let shown = href.clone();
+    let to_copy = href;
+
+    Some(view! {
+        <section class="card line-notice" role="note" hidden=move || gone.get()>
+            <p class="eyebrow">"你正在用 LINE 內建的瀏覽器"</p>
+            <p class="desc">
+                "這裡的語音引導可能沒有聲音。建議改用手機預設的瀏覽器（例如 Safari 或 Chrome）開啟。"
+            </p>
+            <div class="notice-actions">
+                <button class="btn primary" on:click=move |_| web::navigate(&external)>
+                    "用預設瀏覽器開啟"
+                </button>
+                <button
+                    class="btn ghost"
+                    on:click=move |_| {
+                        web::copy_text(&to_copy, move |ok| {
+                            copy.set(if ok { CopyState::Copied } else { CopyState::Failed });
+                        })
+                    }
+                >
+                    "複製連結"
+                </button>
+            </div>
+            {move || match copy.get() {
+                CopyState::Idle => ().into_any(),
+                CopyState::Copied => {
+                    view! { <p class="hint ok">"已複製。請打開 Safari 或 Chrome，貼到網址列。"</p> }.into_any()
+                }
+                CopyState::Failed => {
+                    let shown = shown.clone();
+                    view! {
+                        <p class="hint">"沒辦法自動複製。請長按下面的網址，選「拷貝」或「複製」，再貼到 Safari 或 Chrome。"</p>
+                        <input class="url" readonly value=shown onclick="this.select()"/>
+                    }
+                    .into_any()
+                }
+            }}
+            <p class="hint">"按了沒有反應的話，點 LINE 畫面角落的選單（⋯ 或分享圖示），選擇用瀏覽器開啟。"</p>
+            <button class="link-btn" on:click=move |_| gone.set(true)>"先這樣用"</button>
+        </section>
+    })
 }
 
 #[component]

@@ -239,6 +239,21 @@ h2 { font-size: 1.25rem; margin: 36px 0 14px; color: var(--text); }
 .resume h2 { margin: 0; font-size: 1.2rem; }
 .resume .eyebrow { margin: 0 0 6px; color: var(--amber); font-size: 0.85rem; }
 .resume .welcome { margin: 0 0 10px; color: var(--text); }
+/* 從 LINE 內建瀏覽器開啟時的提醒 */
+.line-notice { margin: 0 0 20px; border-color: rgba(239, 189, 132, 0.45); background: var(--amber-soft); }
+.line-notice[hidden] { display: none; }
+.line-notice .eyebrow { margin: 0 0 6px; color: var(--amber); font-size: 0.9rem; font-weight: 500; }
+.line-notice .desc { margin: 0 0 14px; color: #f3dcc0; }
+.notice-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.line-notice .hint.ok { color: var(--amber); }
+.line-notice .url {
+  box-sizing: border-box; width: 100%; margin-top: 8px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: rgba(0, 0, 0, 0.25); color: var(--text); font-size: 0.85rem;
+}
+.link-btn {
+  display: block; margin: 10px 0 0; padding: 4px 0; border: 0; background: transparent;
+  color: var(--muted); font-size: 0.85rem; text-decoration: underline;
+}
 .milestone { color: var(--amber); margin: 6px 0 0; }
 .remind { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); text-align: center; }
 .remind h2 { margin: 0 0 6px; font-size: 1.05rem; }

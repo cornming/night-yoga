@@ -120,6 +120,41 @@ pub fn stop_speaking() {
     }
 }
 
+/// 瀏覽器的 userAgent；讀不到就是空字串（當作一般瀏覽器）。
+pub fn user_agent() -> String {
+    web_sys::window().and_then(|w| w.navigator().user_agent().ok()).unwrap_or_default()
+}
+
+/// 目前頁面的完整網址。
+pub fn page_href() -> Option<String> {
+    web_sys::window()?.location().href().ok()
+}
+
+/// 前往另一個網址。
+pub fn navigate(url: &str) {
+    if let Some(w) = web_sys::window() {
+        let _ = w.location().set_href(url);
+    }
+}
+
+/// 把文字複製到剪貼簿，結果（成功與否）用 `done` 回報。
+/// 用 Reflect 呼叫 navigator.clipboard.writeText：web-sys 的 Clipboard 是不穩定 API，要額外的編譯旗標；
+/// 沒有這個 API、或 LINE 之類的內建瀏覽器拒絕時，一律回報 false，讓畫面改請使用者自己長按複製。
+pub fn copy_text(text: &str, done: impl FnOnce(bool) + 'static) {
+    let promise = try_copy(text);
+    match promise {
+        Some(p) => spawn_local(async move { done(JsFuture::from(p).await.is_ok()) }),
+        None => done(false),
+    }
+}
+
+fn try_copy(text: &str) -> Option<Promise> {
+    let nav = web_sys::window()?.navigator();
+    let clip = Reflect::get(&nav, &"clipboard".into()).ok().filter(|c| !c.is_undefined() && !c.is_null())?;
+    let write = Reflect::get(&clip, &"writeText".into()).ok()?.dyn_into::<Function>().ok()?;
+    write.call1(&clip, &JsValue::from_str(text)).ok()?.dyn_into::<Promise>().ok()
+}
+
 /// 練習時讓螢幕保持亮著（Screen Wake Lock API，不支援的瀏覽器會略過）。
 pub fn keep_awake() {
     let Some(win) = web_sys::window() else { return };
