@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0f1119">
   <title>夜間瑜珈 躺好就好</title>
-  <meta name="description" content="夜間瑜珈課程 01：8 分鐘、全程躺著的睡前伸展，有倒數計時與呼吸引導圈，做完直接睡。">
+  <meta name="description" content="夜間瑜珈課程 01：8 分鐘、全程躺著的睡前伸展，有倒數計時、呼吸引導圈與語音朗讀，做完直接睡。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500&family=Noto+Serif+TC:wght@500;600&display=swap">
@@ -37,7 +37,11 @@
     </div>
     <div class="actions">
       <button class="btn primary" id="start" type="button">開始</button>
-      <label class="switch"><input type="checkbox" id="breathToggle" checked><span>顯示呼吸引導圈</span></label>
+      <div class="switches">
+        <label class="switch"><input type="checkbox" id="breathToggle" checked><span>顯示呼吸引導圈</span></label>
+        <label class="switch" id="speechRow"><input type="checkbox" id="speechToggle" checked><span>語音朗讀</span></label>
+        <p class="voice-info" id="voiceInfo"></p>
+      </div>
     </div>
     <div class="fine" id="notes"></div>
   </section>
@@ -60,18 +64,20 @@
       </div>
       <div class="time" id="time"><span id="tStep">0:00</span><small id="tAll"></small></div>
     </div>
+    <p class="voice-msg" id="voiceMsg" role="status" hidden></p>
     <div class="cues" id="cues"></div>
     <div class="controls">
       <button class="btn" id="pause" type="button">暫停</button>
       <button class="btn" id="next" type="button">下一步</button>
-      <button class="btn ghost full" id="quit" type="button">結束，回到說明</button>
+      <button class="btn ghost" id="speechBtn" type="button">朗讀：開</button>
+      <button class="btn ghost" id="quit" type="button">結束</button>
     </div>
   </section>
 
   <!-- 完成頁 -->
   <section class="view" id="done" hidden>
-    <h2>做完了。</h2>
-    <p>可以直接睡了。</p>
+    <h2 id="doneTitle"></h2>
+    <p id="doneSub"></p>
     <div class="row">
       <button class="btn ghost" id="again" type="button">再做一次</button>
     </div>
