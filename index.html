@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0f1119">
+  <title>夜間瑜珈 躺好就好</title>
+  <meta name="description" content="夜間瑜珈課程 01：8 分鐘、全程躺著的睡前伸展，有倒數計時與呼吸引導圈，做完直接睡。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500&family=Noto+Serif+TC:wght@500;600&display=swap">
+  <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+
+<main class="app" id="app" data-view="intro">
+  <header class="head">
+    <p class="eyebrow" id="lessonNo"></p>
+    <h1 id="lessonTitle"></h1>
+    <p class="meta" id="lessonMeta"></p>
+  </header>
+
+  <!-- 說明頁 -->
+  <section class="view" id="intro">
+    <div>
+      <h2>準備</h2>
+      <div id="prep"></div>
+    </div>
+    <div>
+      <h2>流程</h2>
+      <ol class="steps" id="steplist"></ol>
+    </div>
+    <div>
+      <h2>停下來的時機</h2>
+      <p id="stop"></p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="start" type="button">開始</button>
+      <label class="switch"><input type="checkbox" id="breathToggle" checked><span>顯示呼吸引導圈</span></label>
+    </div>
+    <div class="fine" id="notes"></div>
+  </section>
+
+  <!-- 播放頁 -->
+  <section class="view" id="play" hidden>
+    <div class="bar" id="bar" aria-hidden="true"></div>
+    <div class="now" aria-live="polite">
+      <div>
+        <span class="of" id="of"></span>
+        <h2 id="stepName"></h2>
+      </div>
+      <span class="pose" id="stepPose"></span>
+    </div>
+    <div class="stage">
+      <div class="breath" id="breath">
+        <div class="ring"></div>
+        <div class="orb" id="orb"></div>
+        <div class="lab" id="lab">吸氣</div>
+      </div>
+      <div class="time" id="time"><span id="tStep">0:00</span><small id="tAll"></small></div>
+    </div>
+    <div class="cues" id="cues"></div>
+    <div class="controls">
+      <button class="btn" id="pause" type="button">暫停</button>
+      <button class="btn" id="next" type="button">下一步</button>
+      <button class="btn ghost full" id="quit" type="button">結束，回到說明</button>
+    </div>
+  </section>
+
+  <!-- 完成頁 -->
+  <section class="view" id="done" hidden>
+    <h2>做完了。</h2>
+    <p>可以直接睡了。</p>
+    <div class="row">
+      <button class="btn ghost" id="again" type="button">再做一次</button>
+    </div>
+  </section>
+</main>
+
+<noscript><p style="padding:24px;color:#a6a3b8">倒數計時與呼吸引導需要開啟 JavaScript。</p></noscript>
+
+<script src="js/data.js?v=1"></script>
+<script src="js/app.js?v=1"></script>
+</body>
+</html>

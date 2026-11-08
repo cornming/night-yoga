@@ -1,0 +1,120 @@
+/* 夜間瑜珈：睡前躺著用的課程播放頁。深色低亮度，單欄，手機優先。 */
+html { background: #0f1119; -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+a { color: inherit; }
+
+  /* 版面：單欄、手機優先。說明、播放、完成三個畫面共用同一個框，躺著單手操作。 */
+  :root {
+    --bg: #0f1119;
+    --surface: #171a26;
+    --line: #2c3148;
+    --fg: #e8e4ee;
+    --muted: #a6a3b8;
+    --accent: #dcc592;
+    --accent-ink: #1b1608;
+    --dusk: #2b3160;
+    --dusk-hi: #4a5499;
+    --glow: rgba(110, 124, 214, 0.28);
+    --font-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+    --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.8;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-top: calc(28px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    min-height: 100vh;
+  }
+  .app { max-width: 34rem; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+  .view { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+  h1, h2, h3, p, ol { margin: 0; padding: 0; }
+  h1, h2, h3 { text-wrap: balance; }
+
+  .eyebrow { font-size: 0.82rem; letter-spacing: 0.14em; color: var(--muted); }
+  h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.6rem; line-height: 1.25; margin-top: 6px; }
+  .meta { color: var(--muted); margin-top: 10px; font-size: 0.95rem; }
+  .app[data-view="play"] .head, .app[data-view="done"] .head { display: none; }
+
+  h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.05rem; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 8px; }
+
+  .steps { list-style: none; counter-reset: s; }
+  .steps li {
+    counter-increment: s;
+    display: grid;
+    grid-template-columns: 2rem 1fr auto;
+    gap: 4px 12px;
+    padding-block: 14px;
+    border-top: 1px solid var(--line);
+    align-items: baseline;
+  }
+  .steps li:last-child { border-bottom: 1px solid var(--line); }
+  .steps li::before { content: counter(s); font-family: var(--font-display); font-size: 1.3rem; color: var(--muted); }
+  .steps .nm { font-family: var(--font-display); font-weight: 500; font-size: 1.2rem; }
+  .steps .pose { color: var(--muted); font-size: 0.9rem; margin-left: 8px; }
+  .steps .mins { font-variant-numeric: tabular-nums; color: var(--fg); white-space: nowrap; }
+  .steps .src { grid-column: 2 / 4; font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+  .steps .src a { color: var(--muted); text-underline-offset: 3px; }
+  .steps .src a:hover, .steps .src a:focus-visible { color: var(--fg); }
+
+  .actions { display: flex; flex-direction: column; gap: 16px; }
+  .btn {
+    font: inherit; font-weight: 500;
+    min-height: 52px; padding: 0 28px;
+    border-radius: 14px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--fg);
+    cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 1.1rem; letter-spacing: 0.2em; }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn:focus-visible, .switch input:focus-visible + span, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .switch { display: inline-flex; align-items: center; gap: 12px; color: var(--muted); font-size: 0.95rem; cursor: pointer; min-height: 44px; }
+  .switch input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+  .fine { font-size: 0.85rem; color: var(--muted); line-height: 1.75; display: flex; flex-direction: column; gap: 8px; }
+
+  /* 播放畫面 */
+  .bar { display: flex; gap: 6px; }
+  .seg { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .seg i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .now { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .now .of { color: var(--muted); font-size: 0.9rem; }
+  .now h2 { font-size: 1.7rem; letter-spacing: 0.02em; color: var(--fg); margin: 2px 0 0; }
+  .now .pose { color: var(--muted); font-size: 0.95rem; }
+
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .breath { position: relative; width: min(64vw, 250px); aspect-ratio: 1; display: grid; place-items: center; }
+  .breath .ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--line); }
+  .breath .orb {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(circle at 50% 38%, var(--dusk-hi), var(--dusk) 72%);
+    box-shadow: 0 0 70px var(--glow);
+    transform: scale(0.8);
+  }
+  .breath .lab { position: relative; font-family: var(--font-display); font-size: 1.6rem; letter-spacing: 0.2em; padding-left: 0.2em; }
+  .app.nobreath .breath { display: none; }
+  .time { font-variant-numeric: tabular-nums; font-size: 2.1rem; font-weight: 500; letter-spacing: 0.04em; line-height: 1.2; }
+  .app.nobreath .time { font-size: 4.2rem; }
+  .time small { display: block; text-align: center; font-size: 0.85rem; font-weight: 400; color: var(--muted); letter-spacing: 0; margin-top: 4px; }
+
+  .cues { display: flex; flex-direction: column; gap: 12px; max-width: 30rem; }
+  .cues p { font-size: 1.08rem; }
+
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .controls .full { grid-column: 1 / -1; }
+
+  /* 完成畫面 */
+  #done { padding-top: 12vh; gap: 20px; }
+  #done h2 { font-size: 2.4rem; color: var(--fg); letter-spacing: 0.04em; margin: 0; }
+  #done p { color: var(--muted); }
+  #done .row { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 20px; }
+
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
