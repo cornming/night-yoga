@@ -26,6 +26,13 @@
     try { window.scrollTo(0, 0); } catch (e) {}
   }
 
+  // 動作圖示由 js/poses.js 產生；缺圖或載入失敗時就不顯示，課程照常進行
+  function setIcon(box, id) {
+    box.textContent = '';
+    var svg = (window.makePoseIcon && id) ? window.makePoseIcon(id) : null;
+    if (svg) box.appendChild(svg);
+  }
+
   // ───────────── 說明頁 ─────────────
   document.title = '夜間瑜珈 ' + LESSON.title;
   $('lessonNo').textContent = '夜間瑜珈　課程 ' + LESSON.id;
@@ -47,17 +54,20 @@
   var list = $('steplist');
   STEPS.forEach(function (s) {
     var li = document.createElement('li');
+    var tt = document.createElement('span'); tt.className = 'tt';
     var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.name;
     var pose = document.createElement('span'); pose.className = 'pose'; pose.textContent = s.pose;
-    var left = document.createElement('span'); left.appendChild(nm); left.appendChild(pose);
+    tt.appendChild(nm); tt.appendChild(pose);
+    var src = document.createElement('span'); src.className = 'src';
     var mins = document.createElement('span'); mins.className = 'mins'; mins.textContent = s.min + ' 分鐘';
-    var src = document.createElement('span'); src.className = 'src'; src.appendChild(document.createTextNode('來源：'));
+    src.appendChild(mins); src.appendChild(document.createTextNode('來源：'));
     s.src.forEach(function (p, i) {
       if (i) src.appendChild(document.createTextNode('、'));
       var a = document.createElement('a'); a.href = p[1]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = p[0];
       src.appendChild(a);
     });
-    li.appendChild(left); li.appendChild(mins); li.appendChild(src);
+    var ico = document.createElement('div'); ico.className = 'ico'; setIcon(ico, s.icon);
+    li.appendChild(tt); li.appendChild(src); li.appendChild(ico);
     list.appendChild(li);
   });
 
@@ -205,6 +215,7 @@
     $('of').textContent = '第 ' + (idx + 1) + ' 步，共 ' + STEPS.length + ' 步';
     $('stepName').textContent = s.name;
     $('stepPose').textContent = s.pose;
+    setIcon($('poseIcon'), s.icon);
     var c = $('cues'); c.textContent = '';
     s.cues.forEach(function (t) { var p = document.createElement('p'); p.textContent = t; c.appendChild(p); });
     $('next').textContent = (idx === STEPS.length - 1) ? '完成' : '下一步';

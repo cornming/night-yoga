@@ -30,7 +30,7 @@ window.NIGHT_YOGA = {
       prep: ['頭下 1 顆枕頭。', '想墊在膝蓋下方的話，再準備 2 顆。'],
       steps: [
         {
-          name: '躺好', pose: '攤屍式', min: 2,
+          name: '躺好', pose: '攤屍式', icon: 'P01', min: 2,
           src: [
             ['GhostBed', 'https://www.ghostbed.com/pages/yoga-in-bed'],
             ['YogaUOnline', 'https://yogauonline.com/yoga-health-benefits/insomnia/this-bedtime-yoga-sequence-to-find-deep-restful-sleep/']
@@ -42,7 +42,7 @@ window.NIGHT_YOGA = {
           ]
         },
         {
-          name: '束角式', pose: '仰臥束角式', min: 3,
+          name: '束角式', pose: '仰臥束角式', icon: 'P02', min: 3,
           src: [
             ['Yoga Journal', 'https://www.yogajournal.com/yoga-101/pillow-poses-relaxing-restorative-yoga-you-can-do-in-bed'],
             ['PureWow', 'https://www.purewow.com/wellness/yoga-in-bed'],
@@ -56,7 +56,7 @@ window.NIGHT_YOGA = {
           ]
         },
         {
-          name: '回到攤屍式', pose: '攤屍式', min: 3,
+          name: '回到攤屍式', pose: '攤屍式', icon: 'P01', min: 3,
           src: [
             ['GhostBed', 'https://www.ghostbed.com/pages/yoga-in-bed'],
             ['YogaUOnline', 'https://yogauonline.com/yoga-health-benefits/insomnia/this-bedtime-yoga-sequence-to-find-deep-restful-sleep/']

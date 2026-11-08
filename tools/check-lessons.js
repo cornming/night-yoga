@@ -1,4 +1,5 @@
 // 比對 js/data.js 與 lessons/*.md：標題、總時間、每一步的時間與口令稿必須逐字相同。
+// 也檢查每一步指定的動作圖示：圖示要存在，且編號要對得上 poses.md 的動作名稱。
 // 用法：node tools/check-lessons.js（不需要安裝任何套件）
 'use strict';
 const fs = require('fs');
@@ -8,7 +9,13 @@ const vm = require('vm');
 const root = path.join(__dirname, '..');
 const sandbox = { window: {} };
 vm.runInNewContext(fs.readFileSync(path.join(root, 'js/data.js'), 'utf8'), sandbox, { filename: 'js/data.js' });
+vm.runInNewContext(fs.readFileSync(path.join(root, 'js/poses.js'), 'utf8'), sandbox, { filename: 'js/poses.js' });
 const D = sandbox.window.NIGHT_YOGA;
+const ICON_IDS = sandbox.window.NIGHT_YOGA_ICON_IDS;
+
+// poses.md 的動作標題：「## P02 仰臥束角式（Supta Baddha Konasana）」→ { P02: '仰臥束角式（Supta Baddha Konasana）' }
+const poseHeads = {};
+for (const m of fs.readFileSync(path.join(root, 'poses.md'), 'utf8').matchAll(/^## (P\d+) (.+)$/gm)) poseHeads[m[1]] = m[2];
 
 let failures = 0;
 const fail = (msg) => { failures += 1; console.log('  FAIL ' + msg); };
@@ -44,6 +51,10 @@ for (const L of D.lessons) {
   }
   core.forEach((sec, i) => {
     const step = L.steps[i];
+    if (!step.icon) fail('第 ' + (i + 1) + ' 步沒有指定動作圖示（icon）');
+    else if (!ICON_IDS.includes(step.icon)) fail('第 ' + (i + 1) + ' 步的圖示 ' + step.icon + ' 在 js/poses.js 裡不存在');
+    else if (!poseHeads[step.icon]) fail('第 ' + (i + 1) + ' 步的圖示 ' + step.icon + ' 在 poses.md 裡找不到對應動作');
+    else if (!poseHeads[step.icon].includes(step.pose)) fail('第 ' + (i + 1) + ' 步動作「' + step.pose + '」與 poses.md 的 ' + step.icon + '「' + poseHeads[step.icon] + '」不符');
     const m = sec.head.match(/(\d+(?:\.\d+)?) 分鐘/);
     if (!m || Number(m[1]) !== step.min) fail('第 ' + (i + 1) + ' 步時間：網頁 ' + step.min + ' 分鐘，Markdown「' + sec.head + '」');
     if (sec.cues.length !== step.cues.length) {
@@ -55,6 +66,8 @@ for (const L of D.lessons) {
     });
   });
 }
+
+for (const id of ICON_IDS) if (!poseHeads[id]) fail('js/poses.js 的 ' + id + ' 在 poses.md 沒有對應動作');
 
 // 「停下來的時機」要和 Markdown 一致
 for (const L of D.lessons) {

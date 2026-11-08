@@ -16,6 +16,7 @@ a { color: inherit; }
     --dusk: #2b3160;
     --dusk-hi: #4a5499;
     --glow: rgba(110, 124, 214, 0.28);
+    --pillow: #262b45;
     --font-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
     --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
     color-scheme: dark;
@@ -49,18 +50,29 @@ a { color: inherit; }
   .steps li {
     counter-increment: s;
     display: grid;
-    grid-template-columns: 2rem 1fr auto;
-    gap: 4px 12px;
+    grid-template-columns: 2rem 1fr 92px;
+    grid-template-areas: "n t i" ". m i";
+    gap: 2px 12px;
     padding-block: 14px;
     border-top: 1px solid var(--line);
-    align-items: baseline;
+    align-items: center;
   }
   .steps li:last-child { border-bottom: 1px solid var(--line); }
-  .steps li::before { content: counter(s); font-family: var(--font-display); font-size: 1.3rem; color: var(--muted); }
+  .steps li::before { grid-area: n; content: counter(s); font-family: var(--font-display); font-size: 1.3rem; color: var(--muted); }
+  .steps .tt { grid-area: t; min-width: 0; }
+  .steps .ico { grid-area: i; }
   .steps .nm { font-family: var(--font-display); font-weight: 500; font-size: 1.2rem; }
-  .steps .pose { color: var(--muted); font-size: 0.9rem; margin-left: 8px; }
-  .steps .mins { font-variant-numeric: tabular-nums; color: var(--fg); white-space: nowrap; }
-  .steps .src { grid-column: 2 / 4; font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+  .steps .pose { color: var(--muted); font-size: 0.9rem; margin-left: 8px; white-space: nowrap; }
+  .steps .mins { font-variant-numeric: tabular-nums; color: var(--fg); margin-right: 8px; white-space: nowrap; }
+  .steps .src { grid-area: m; min-width: 0; font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+
+  /* 動作圖示（js/poses.js 產生的 SVG） */
+  .pose-icon { display: block; width: 100%; height: auto; }
+  .ic-bed { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+  .ic-pillow { fill: var(--pillow); }
+  .ic-body { fill: none; stroke: var(--accent); stroke-linecap: round; stroke-linejoin: round; }
+  .ic-out { fill: none; stroke: var(--surface); stroke-linecap: round; stroke-linejoin: round; }
+  .ic-dot { fill: var(--accent); }
   .steps .src a { color: var(--muted); text-underline-offset: 3px; }
   .steps .src a:hover, .steps .src a:focus-visible { color: var(--fg); }
 
@@ -91,10 +103,12 @@ a { color: inherit; }
   .bar { display: flex; gap: 6px; }
   .seg { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
   .seg i { display: block; height: 100%; width: 0; background: var(--accent); }
-  .now { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .now { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
   .now .of { color: var(--muted); font-size: 0.9rem; }
   .now h2 { font-size: 1.7rem; letter-spacing: 0.02em; color: var(--fg); margin: 2px 0 0; }
-  .now .pose { color: var(--muted); font-size: 0.95rem; }
+  .now .pose { color: var(--muted); font-size: 0.85rem; }
+  .pose-fig { width: 120px; flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .pose-fig #poseIcon { width: 100%; }
 
   .stage { display: flex; flex-direction: column; align-items: center; gap: 18px; }
   .breath { position: relative; width: min(64vw, 250px); aspect-ratio: 1; display: grid; place-items: center; }
